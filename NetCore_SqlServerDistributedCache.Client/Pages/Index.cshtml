@@ -1,0 +1,26 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Home page";
+}
+
+<div class="text-center">
+    <h1 class="display-4">Welcome</h1>
+    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+</div>
+
+<hr />
+
+<div class="row">
+    <div class="col-12">
+        <h1>Hybrid Cache Test</h1>
+    </div>
+    <div class="row">
+        <div class="col-3 text-end">
+            <label class="form-label"><strong>Cache key Person:</strong></label>
+        </div>
+        <div class="col-6">
+            <p>@Model.CachePerson</p>
+        </div>
+    </div>
+</div>
