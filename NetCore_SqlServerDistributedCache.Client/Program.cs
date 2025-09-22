@@ -8,9 +8,11 @@ builder.Services.AddHybridCache(options =>
 {
     options.DefaultEntryOptions = new HybridCacheEntryOptions
     {
-        
+        // Set default options for cache entries here
+        Expiration = TimeSpan.FromHours(24)
     };
 });
+
 builder.Services.AddSingleton<ICacheService>(service =>
 {
     HybridCache cache = service.GetRequiredService<HybridCache>();
@@ -38,9 +40,8 @@ app.UseHttpsRedirection();
 
 app.UseRouting();
 
-app.UseAuthorization();
-
 app.MapStaticAssets();
+
 app.MapRazorPages()
    .WithStaticAssets();
 

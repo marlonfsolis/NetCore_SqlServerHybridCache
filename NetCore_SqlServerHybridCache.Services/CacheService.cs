@@ -71,7 +71,7 @@ public class CacheService : ICacheService
         dynParams.Add("@Key", key);
 
         string sql = "SELECT ac.Id FROM AppCache ac WHERE ac.Id = @Key;";
-        string keyResult = await _connection.QueryFirstAsync<string>(sql, dynParams);
+        string? keyResult = await _connection.QueryFirstOrDefaultAsync<string>(sql, dynParams);
 
         return !string.IsNullOrEmpty(keyResult);
     }
@@ -87,7 +87,7 @@ public class CacheService : ICacheService
         dynParams.Add("@Key", key);
 
         string sql = "SELECT [Value] FROM AppCache ac WHERE ac.Id = @Key AND ac.AbsoluteExpiration > GETDATE();";
-        byte[] bytes = await _connection.QueryFirstAsync<byte[]>(sql, dynParams);
+        byte[]? bytes = await _connection.QueryFirstOrDefaultAsync<byte[]>(sql, dynParams);
         if (bytes is null)
         {
             return default(T);
