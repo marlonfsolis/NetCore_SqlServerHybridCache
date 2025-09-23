@@ -3,6 +3,9 @@ using Microsoft.Extensions.Caching.Hybrid;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add service defaults & Aspire client integrations.
+builder.AddServiceDefaults();
+
 // Add Hybrid Caching services to the container.
 builder.Services.AddHybridCache(options =>
 {
@@ -44,5 +47,7 @@ app.MapStaticAssets();
 
 app.MapRazorPages()
    .WithStaticAssets();
+
+app.MapDefaultEndpoints();
 
 app.Run();

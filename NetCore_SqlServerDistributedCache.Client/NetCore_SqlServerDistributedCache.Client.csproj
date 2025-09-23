@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NetCore_SqlServerDistributedCache.Models\NetCore_SqlServerDistributedCache.Models.csproj" />
+    <ProjectReference Include="..\NetCore_SqlServerHybridCache.Aspire\NetCore_SqlServerHybridCache.Aspire.ServiceDefaults\NetCore_SqlServerHybridCache.Aspire.ServiceDefaults.csproj" />
     <ProjectReference Include="..\NetCore_SqlServerHybridCache.Services\NetCore_SqlServerHybridCache.Services.csproj" />
     <ProjectReference Include="..\NetCore_SqlServerHybridCache.Shared\NetCore_SqlServerHybridCache.Shared.csproj" />
   </ItemGroup>
