@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using NetCore_SqlServerDistributedCache.Models;
 using NetCore_SqlServerDistributedCache.Shared.Constants;
@@ -18,12 +19,19 @@ namespace NetCore_SqlServerDistributedCache.Client.Pages
 
         /* Properties section */
 
-        public string SessionPersonName { get; set; } = string.Empty;
+        [BindProperty]
+        public string NewName { get; set; } = string.Empty;
         public string CachePerson { get; set; } = string.Empty;
 
 
 
         /* Methods section */
+
+        private async Task<string> GetPersonSerializedFromSession()
+        {
+            var p1 = await _cache.Get<Person>(CacheKeys.Person);
+            return JsonSerializer.Serialize(p1);
+        }
 
         public async Task OnGet()
         {
@@ -36,6 +44,12 @@ namespace NetCore_SqlServerDistributedCache.Client.Pages
 
             p1 = await _cache.Get<Person>(CacheKeys.Person);
             CachePerson = p1 is null ? string.Empty : JsonSerializer.Serialize(p1);
+        }
+
+        public async Task OnPostUpdateName()
+        {
+            await _cache.Set(CacheKeys.Person, new Person() { Name = NewName, Age = 36 });
+            CachePerson = await GetPersonSerializedFromSession();
         }
     }
 }

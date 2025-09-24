@@ -1,3 +1,5 @@
+
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add service defaults & Aspire client integrations.
@@ -8,6 +10,8 @@ builder.Services.AddProblemDetails();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+builder.Services.AddSignalR();
 
 var app = builder.Build();
 
@@ -40,6 +44,9 @@ app.MapGet("/weatherforecast", () =>
 })
 .WithName("GetWeatherForecast");
 
+app.MapHub<CacheNotificationHub>(CacheNotificationHub.HubUrl);
+
+// Map End-Points for Aspire default services
 app.MapDefaultEndpoints();
 
 app.Run();

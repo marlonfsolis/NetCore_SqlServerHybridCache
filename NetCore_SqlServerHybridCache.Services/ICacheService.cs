@@ -27,4 +27,17 @@ public interface ICacheService
     /// <returns></returns>
     Task Set(string key, object value, TimeSpan expirationTime);
 
+    /// <summary>
+    /// Remove the Key from Cache
+    /// </summary>
+    /// <param name="key"></param>
+    /// <returns></returns>
+    Task Remove(string key);
+
+    /// <summary>
+    /// Remove the Key from Local Cache
+    /// </summary>
+    /// <param name="key"></param>
+    /// <returns></returns>
+    Task RemoveLocal(string key);
 }
