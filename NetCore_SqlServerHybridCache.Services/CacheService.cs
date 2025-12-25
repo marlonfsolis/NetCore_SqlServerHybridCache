@@ -1,16 +1,10 @@
-﻿using Microsoft.AspNetCore.DataProtection.KeyManagement;
-using Microsoft.AspNetCore.SignalR.Client;
-using Microsoft.Extensions.Options;
-using NetCore_SqlServerHybridCache.Shared.ConfigOptions;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 
 namespace NetCore_SqlServerHybridCache.Services;
 
 public class CacheService : ICacheService
 {
-    private readonly HybridCache _cache;
     private readonly IConfiguration _configuration;
-    private readonly AppHubConnectionOptions _appHubConnectionOption;
     private string _prefix;
     private TimeSpan _absoluteExpirationRelativeToNow;
     private SqlConnection _connection;
@@ -19,14 +13,11 @@ public class CacheService : ICacheService
         HybridCache cache, 
         IConfiguration configuration,
         string? prefix, 
-        TimeSpan absoluteExpirationRelativeToNow,
-        IOptions<AppHubConnectionOptions> appHubConnectionOption)
+        TimeSpan absoluteExpirationRelativeToNow)
     {
-        _cache = cache;
         _configuration = configuration;
         _prefix = prefix ?? string.Empty;
         _absoluteExpirationRelativeToNow = absoluteExpirationRelativeToNow;
-        _appHubConnectionOption = appHubConnectionOption.Value;
         _connection = new SqlConnection();
 
         SetupConnection();
@@ -123,22 +114,6 @@ public class CacheService : ICacheService
         await _connection.ExecuteAsync(sql, dynParams);
     }
 
-    private async Task NotifyCacheUpdate(string key)
-    {
-        if (_appHubConnectionOption.CacheNotificationHubConnection is not null)
-        {
-            try
-            {
-                await _appHubConnectionOption.CacheNotificationHubConnection.InvokeAsync("NotifyCacheUpdate", key);
-            }
-            catch (Exception ex)
-            {
-                // Handle exceptions (e.g., log the error)
-                Debug.WriteLine($"Error notifying cache update: {ex.Message}");
-            }
-        }
-    }
-
 
 
     /* Public Method section *********************************************************/
@@ -182,9 +157,6 @@ public class CacheService : ICacheService
         //await RemoveLocal(key);
 
         await UpdateSourceByKey(_key, value, expirationTime);
-
-        // Notify other instances to remove the key from their local cache
-        await NotifyCacheUpdate(key);
     }
 
     public async Task Remove(string key)
