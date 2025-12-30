@@ -1,6 +1,10 @@
-﻿CREATE TABLE [dbo].[AppCache]
+﻿--
+-- Store the data cached accorss the app
+-- DROP TABLE dbo.AppCache
+--
+CREATE TABLE dbo.AppCache
 (
-	[Id] INT NOT NULL PRIMARY KEY, 
-    [Value] VARBINARY(MAX) NULL, 
-    [AbsoluteExpiration] DATETIMEOFFSET NULL
+	AppCacheKey VARCHAR(900) NOT NULL PRIMARY KEY, 
+    CacheValue VARBINARY(MAX) NULL, 
+    AbsoluteExpiration DATETIMEOFFSET NOT NULL
 )

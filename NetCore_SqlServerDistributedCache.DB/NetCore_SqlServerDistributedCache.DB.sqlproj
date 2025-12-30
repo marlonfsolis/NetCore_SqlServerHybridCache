@@ -57,10 +57,12 @@
   <ItemGroup>
     <Folder Include="Properties" />
     <Folder Include="Tables" />
-    <Folder Include="Procedures" />
     <Folder Include="Scripts" />
   </ItemGroup>
   <ItemGroup>
+    <Build Include="Procedures\usp_deleteCacheValue.sql" />
+    <Build Include="Procedures\usp_getCacheValue.sql" />
+    <Build Include="Procedures\usp_setCacheValue.sql" />
     <Build Include="Tables\AppCache.sql" />
     <Build Include="Procedures\usp_getCacheKeyExists.sql" />
   </ItemGroup>

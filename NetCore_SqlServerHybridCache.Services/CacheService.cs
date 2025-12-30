@@ -1,13 +1,14 @@
-﻿using System.Diagnostics;
+﻿using System.Data;
+using System.Diagnostics;
 
 namespace NetCore_SqlServerHybridCache.Services;
 
 public class CacheService : ICacheService
 {
     private readonly IConfiguration _configuration;
-    private string _prefix;
+    private readonly string _prefix;
+    private readonly string _connectionString;
     private TimeSpan _absoluteExpirationRelativeToNow;
-    private SqlConnection _connection;
 
     public CacheService(
         HybridCache cache, 
@@ -18,54 +19,53 @@ public class CacheService : ICacheService
         _configuration = configuration;
         _prefix = prefix ?? string.Empty;
         _absoluteExpirationRelativeToNow = absoluteExpirationRelativeToNow;
-        _connection = new SqlConnection();
-
-        SetupConnection();
+        _connectionString = GetConnectionString();
     }
 
 
     /* Property section *********************************************************/
 
-    public string Prefix
-    {
-        get { return _prefix; }
-        set { _prefix = value ?? string.Empty; }
-    }
+    public string Prefix => _prefix;
 
     public TimeSpan AbsoluteExpirationRelativeToNow
     {
-        get { return _absoluteExpirationRelativeToNow; }
-        set { _absoluteExpirationRelativeToNow = value; }
+        get => _absoluteExpirationRelativeToNow;
+        set => _absoluteExpirationRelativeToNow = value;
     }
 
 
     /* Private Method section *********************************************************/
 
-    private void SetupConnection()
+    private string GetConnectionString()
     {
         string? connectionString = _configuration.GetConnectionString("HybridCache");
         if (string.IsNullOrEmpty(connectionString))
         {
             throw new ArgumentNullException(nameof(connectionString));
         }
-
-        _connection = new SqlConnection(connectionString);
-        if (_connection is null)
-        {
-            throw new ArgumentNullException(nameof(_connection));
-        }
+        return connectionString;
+    }
+    
+    private SqlConnection GetConnection()
+    {
+        return new SqlConnection(_connectionString);
     }
 
+    private string GetKey(string key)
+    {
+        return $"{Prefix}{key}";
+    }
 
     private async Task<bool> CacheKeyExistsInSource(string key)
     {
         DynamicParameters dynParams = new DynamicParameters();
         dynParams.Add("@Key", key);
 
-        string sql = "SELECT ac.Id FROM AppCache ac WHERE ac.Id = @Key;";
-        string? keyResult = await _connection.QueryFirstOrDefaultAsync<string>(sql, dynParams);
+        const string sql = "dbo.usp_getCacheKeyExists";
+        using IDbConnection connection = GetConnection();
+        bool exists = await connection.QueryFirstAsync<bool>(sql, dynParams);
 
-        return !string.IsNullOrEmpty(keyResult);
+        return exists;
     }
 
     private async Task<T?> GetFromSourceAsync<T>(string key, CancellationToken token = default)
@@ -78,15 +78,16 @@ public class CacheService : ICacheService
         DynamicParameters dynParams = new DynamicParameters();
         dynParams.Add("@Key", key);
 
-        string sql = "SELECT [Value] FROM AppCache ac WHERE ac.Id = @Key AND ac.AbsoluteExpiration > GETDATE();";
-        byte[]? bytes = await _connection.QueryFirstOrDefaultAsync<byte[]>(sql, dynParams);
-        if (bytes is null)
+        string sql = "dbo.usp_getCacheValue";
+        using IDbConnection connection = GetConnection();
+        byte[]? bytes = await connection.QueryFirstOrDefaultAsync<byte[]>(sql, dynParams);
+        if (bytes is null || bytes.Length == 0)
         {
             return default(T);
         }
 
         using MemoryStream ms = new(bytes);
-        var result = JsonSerializer.Deserialize<T>(ms);
+        T? result = JsonSerializer.Deserialize<T>(ms);
 
         return result;
     }
@@ -94,15 +95,16 @@ public class CacheService : ICacheService
     private async Task UpdateSourceByKey(string key, object value, TimeSpan expirationTime)
     {
         using MemoryStream ms = new();
-        JsonSerializer.Serialize(ms, value);
+        await JsonSerializer.SerializeAsync(ms, value);
 
         DynamicParameters dynParams = new DynamicParameters();
         dynParams.Add("@Key", key);
         dynParams.Add("@Value", ms.ToArray());
         dynParams.Add("@Expiration", DateTimeOffset.UtcNow.Add(expirationTime));
 
-        string sql = "DELETE [HybridCache].[dbo].[AppCache] WHERE Id = @Key;INSERT INTO [HybridCache].[dbo].[AppCache] VALUES (@Key, @Value, @Expiration);";
-        await _connection.ExecuteAsync(sql, dynParams);
+        const string sql = "dbo.usp_setCacheValue";
+        IDbConnection connection = GetConnection();
+        await connection.ExecuteAsync(sql, dynParams, commandType: CommandType.StoredProcedure);
     }
 
     private async Task RemoveFromSource(string key)
@@ -110,8 +112,9 @@ public class CacheService : ICacheService
         DynamicParameters dynParams = new DynamicParameters();
         dynParams.Add("@Key", key);
 
-        string sql = "DELETE [HybridCache].[dbo].[AppCache] WHERE Id = @Key";
-        await _connection.ExecuteAsync(sql, dynParams);
+        string sql = "usp_deleteCacheValue";
+        IDbConnection connection = GetConnection();
+        await connection.ExecuteAsync(sql, dynParams);
     }
 
 
@@ -120,7 +123,7 @@ public class CacheService : ICacheService
 
     public async Task<bool> KeyExists(string key)
     {
-        string _key = $"{Prefix}{key}";
+        string _key = GetKey(key);
 
         bool keyExists = await CacheKeyExistsInSource(_key);
 
@@ -129,7 +132,7 @@ public class CacheService : ICacheService
 
     public async Task<T?> Get<T>(string key)
     {
-        string _key = $"{Prefix}{key}";
+        string _key = GetKey(key);
         var result = await _cache.GetOrCreateAsync(
             _key,
             async cancel => await GetFromSourceAsync<T>(_key, cancel),
@@ -141,14 +144,14 @@ public class CacheService : ICacheService
 
     public async Task Set(string key, object value)
     {
-        await Set(key, value, _absoluteExpirationRelativeToNow);
+        await Set(key, value, AbsoluteExpirationRelativeToNow);
     }
 
     public async Task Set(string key, object value, TimeSpan expirationTime)
     {
         if (value is null) return;
 
-        string _key = $"{Prefix}{key}";
+        string _key = GetKey(key);
 
         await _cache.SetAsync(_key, value, new HybridCacheEntryOptions
         {
@@ -161,7 +164,7 @@ public class CacheService : ICacheService
 
     public async Task Remove(string key)
     {
-        string _key = $"{Prefix}{key}";
+        string _key = GetKey(key);
 
         await _cache.RemoveAsync(_key);
 
@@ -170,7 +173,7 @@ public class CacheService : ICacheService
 
     public async Task RemoveLocal(string key)
     {
-        string _key = $"{Prefix}{key}";
+        string _key = GetKey(key);
         await _cache.RemoveAsync(_key);
     }
 }

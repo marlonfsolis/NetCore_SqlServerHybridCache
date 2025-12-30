@@ -1,3 +1,18 @@
+CREATE PROCEDURE usp_getCacheKeyExists 
+(
+	@Key VARCHAR(900)
+)
+AS
+BEGIN
+	DECLARE @Exists BIT = 0;
 
-SELECT *
-FROM hybri
+	IF EXISTS (
+		SELECT 1
+		FROM dbo.AppCache ac
+		WHERE ac.AppCacheKey = @Key
+	) BEGIN
+		SET @Exists = 1;
+	END
+
+	SELECT @Exists AS 'KeyExists';
+END
