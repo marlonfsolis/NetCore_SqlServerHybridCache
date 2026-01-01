@@ -18,4 +18,8 @@
     <ProjectReference Include="..\NetCore_SqlServerHybridCache.Shared\NetCore_SqlServerHybridCache.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Tests\" />
+  </ItemGroup>
+
 </Project>

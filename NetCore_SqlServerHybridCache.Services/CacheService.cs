@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
-using NetCore_SqlServerHybridCache.Services.Extensions;
-using System.Data;
+﻿using System.Data;
 using System.Diagnostics;
 
 namespace NetCore_SqlServerHybridCache.Services;
