@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.14.36221.1
+# Visual Studio Version 18
+VisualStudioVersion = 18.1.11312.151 d18.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetCore_SqlServerHybridCache.Shared", "NetCore_SqlServerHybridCache.Shared\NetCore_SqlServerHybridCache.Shared.csproj", "{051636B8-0EA0-401B-B4EA-2CFE7A2987CF}"
 EndProject
@@ -20,6 +20,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetCore_SqlServerHybridCache.Aspire.ApiService", "NetCore_SqlServerHybridCache.Aspire\NetCore_SqlServerHybridCache.Aspire.ApiService\NetCore_SqlServerHybridCache.Aspire.ApiService.csproj", "{7AC3A763-23BC-DE2C-80BF-5979930C7461}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetCore_SqlServerHybridCache.Aspire.Web", "NetCore_SqlServerHybridCache.Aspire\NetCore_SqlServerHybridCache.Aspire.Web\NetCore_SqlServerHybridCache.Aspire.Web.csproj", "{81CF0714-5F00-AD2B-07C1-DBFE8B480C69}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetCore_SqlServerDistributedCache.ReverseProxy", "NetCore_SqlServerDistributedCache.ReverseProxy\NetCore_SqlServerDistributedCache.ReverseProxy.csproj", "{AC5F87EF-F4DD-B3BA-8CE9-B76A3FF0D1AF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -65,6 +67,10 @@ Global
 		{81CF0714-5F00-AD2B-07C1-DBFE8B480C69}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{81CF0714-5F00-AD2B-07C1-DBFE8B480C69}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{81CF0714-5F00-AD2B-07C1-DBFE8B480C69}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AC5F87EF-F4DD-B3BA-8CE9-B76A3FF0D1AF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AC5F87EF-F4DD-B3BA-8CE9-B76A3FF0D1AF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AC5F87EF-F4DD-B3BA-8CE9-B76A3FF0D1AF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AC5F87EF-F4DD-B3BA-8CE9-B76A3FF0D1AF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

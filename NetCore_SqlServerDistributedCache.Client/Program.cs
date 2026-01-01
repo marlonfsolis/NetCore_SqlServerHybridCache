@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Caching.Hybrid;
 using NetCore_SqlServerHybridCache.Services.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -7,8 +5,6 @@ var builder = WebApplication.CreateBuilder(args);
 // Add service defaults & Aspire client integrations.
 builder.AddServiceDefaults();
 
-
-builder.Services.AddSignalR();
 
 builder.Services.AddHybridCacheStore();
 
