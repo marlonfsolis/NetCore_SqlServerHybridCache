@@ -1,5 +1,8 @@
-﻿using System.Data;
+﻿using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using System.Collections.Concurrent;
+using System.Data;
 using System.Diagnostics;
+using System.Threading;
 
 namespace NetCore_SqlServerHybridCache.Services;
 
@@ -10,6 +13,11 @@ public class CacheService : ICacheService
     private readonly string _prefix;
     private readonly string _connectionString;
     private TimeSpan _absoluteExpirationRelativeToNow;
+
+    // We need to lock per key. Only for write operations.
+    // This will prevent multiple threads trying to update the same key at the same time.
+    // And prevent error on DB transaction when using Memory Optimized table.
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks;
 
     public CacheService(
         IAppMemoryCache localCache,
@@ -22,6 +30,7 @@ public class CacheService : ICacheService
         _prefix = prefix ?? string.Empty;
         _absoluteExpirationRelativeToNow = absoluteExpirationRelativeToNow;
         _connectionString = GetConnectionString();
+        _locks = new ConcurrentDictionary<string, SemaphoreSlim>();
     }
 
 
@@ -90,6 +99,7 @@ public class CacheService : ICacheService
 
         DynamicParameters dynParams = new DynamicParameters();
         dynParams.Add("@Key", key);
+        dynParams.Add("@UtcNow", DateTimeOffset.UtcNow);
 
         string sql = "dbo.usp_getCacheValue";
         using IDbConnection connection = GetConnection();
@@ -113,7 +123,7 @@ public class CacheService : ICacheService
         DynamicParameters dynParams = new DynamicParameters();
         dynParams.Add("@Key", key);
         dynParams.Add("@Value", ms.ToArray());
-        dynParams.Add("@Expiration", DateTimeOffset.UtcNow.Add(expirationTime));
+        dynParams.Add("@AbsoluteExpiration", DateTimeOffset.UtcNow.Add(expirationTime));
 
         const string sql = "dbo.usp_setCacheValue";
         IDbConnection connection = GetConnection();
@@ -258,6 +268,8 @@ public class CacheService : ICacheService
 
 
         // Set in remote session cache.
+        SemaphoreSlim semaphore = _locks.GetOrAdd(_key, _ => new SemaphoreSlim(1, 1));
+        await semaphore.WaitAsync();
         try
         {
             await UpdateSourceByKey(_key, value, absoluteExpirationRelativeToNow);
@@ -265,6 +277,10 @@ public class CacheService : ICacheService
         catch (Exception e)
         {
             Debug.WriteLine(e.Message);
+        }
+        finally
+        {
+            semaphore.Release();
         }
     }
 
@@ -275,14 +291,21 @@ public class CacheService : ICacheService
 
     public async Task RemoveAsync(string key)
     {
+        string _key = GetKey(key);
+
+        SemaphoreSlim semaphore = _locks.GetOrAdd(_key, _ => new SemaphoreSlim(1, 1));
+        await semaphore.WaitAsync();
         try
         {
-            string _key = GetKey(key);
-            await RemoveFromSource(key);
+            await RemoveFromSource(_key);
         }
         catch (Exception e)
         {
             Debug.WriteLine(e.Message);
+        }
+        finally
+        {
+            semaphore.Release();
         }
     }
 
@@ -307,6 +330,12 @@ public class CacheService : ICacheService
             //UpdateLocalKeyVersion(id, key);
         });
 
+        // Lock all keys
+        foreach (var l in _locks)
+        {
+            await l.Value.WaitAsync();
+        }
+
         // Clear remote session cache.
         try
         {
@@ -315,6 +344,14 @@ public class CacheService : ICacheService
         catch (Exception e)
         {
             Debug.WriteLine(e.Message);
+        }
+        finally
+        {
+            // Release all keys
+            foreach (var l in _locks)
+            {
+                l.Value.Release();
+            }
         }
     }
 }
