@@ -27,10 +27,28 @@
 
 
 <form method="post" class="row g-3">
+    <h3>Update Cache Item</h3>
     <div class="col-auto">
         <input name="NewName" class="form-control" />
     </div>
     <div class="col-auto">
         <button type="submit" asp-page-handler="UpdateName" class="btn btn-success">Update</button>
+    </div>
+</form>
+
+<form method="post" class="row g-3">
+    <h3>Replace Cache Item</h3>
+    <div class="col-auto">
+        <input name="NewName" class="form-control" />
+    </div>
+    <div class="col-auto">
+        <button type="submit" asp-page-handler="ReplaceName" class="btn btn-success">Replace</button>
+    </div>
+</form>
+
+<form method="post" class="row g-3">
+    <h3>Clear Cache Items</h3>
+    <div class="col-auto">
+        <button type="submit" asp-page-handler="ClearCache" class="btn btn-success">Clear Cache</button>
     </div>
 </form>

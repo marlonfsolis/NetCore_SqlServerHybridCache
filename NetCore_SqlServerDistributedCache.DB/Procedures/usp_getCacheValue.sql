@@ -1,4 +1,4 @@
-CREATE PROCEDURE usp_getCacheValue
+CREATE PROCEDURE dbo.usp_getCacheValue
 (
 	@Key VARCHAR(900),
 	@UtcNow DATETIMEOFFSET

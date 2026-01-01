@@ -7,15 +7,17 @@ public static class CacheStoreExtension
 {
     public static IServiceCollection AddHybridCacheStore(this IServiceCollection services)
     {
+        services.AddSingleton<IAppMemoryCache, AppMemoryCache>();
+
         // Register Hybrid Cache Service
         services.AddSingleton<ICacheService>(sp =>
         {
-            HybridCache cache = sp.GetRequiredService<HybridCache>();
+            IAppMemoryCache localCache = sp.GetRequiredService<IAppMemoryCache>();
             IConfiguration configuration = sp.GetRequiredService<IConfiguration>();
             string prefix = "App_";
             TimeSpan expiration = TimeSpan.FromMinutes(10);
 
-            ICacheService cacheService = new CacheService(configuration, prefix, expiration);
+            ICacheService cacheService = new CacheService(localCache, configuration, prefix, expiration);
 
             return cacheService;
         });

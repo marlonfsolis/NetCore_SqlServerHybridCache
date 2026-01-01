@@ -29,27 +29,43 @@ namespace NetCore_SqlServerDistributedCache.Client.Pages
 
         private async Task<string> GetPersonSerializedFromSession()
         {
-            var p1 = await _cache.Get<Person>(CacheKeys.Person);
+            var p1 = await _cache.GetAsync<Person>(CacheKeys.Person);
             return JsonSerializer.Serialize(p1);
         }
 
         public async Task OnGet()
         {
             // AppCache work
-            Person? p1 = await _cache.Get<Person?>(CacheKeys.Person);
+            Person? p1 = await _cache.GetAsync<Person?>(CacheKeys.Person);
             if (p1 is null)
             {
-                await _cache.Set(CacheKeys.Person, new Person() { Name = "Yenni", Age = 36 });
+                await _cache.SetAsync(CacheKeys.Person, new Person() { Name = "Yenni", Age = 36 });
             }
 
-            p1 = await _cache.Get<Person>(CacheKeys.Person);
+            p1 = await _cache.GetAsync<Person>(CacheKeys.Person);
             CachePerson = p1 is null ? string.Empty : JsonSerializer.Serialize(p1);
         }
 
         public async Task OnPostUpdateName()
         {
-            await _cache.Set(CacheKeys.Person, new Person() { Name = NewName, Age = 36 });
+            await _cache.SetAsync(CacheKeys.Person, new Person() { Name = NewName, Age = 36 });
             CachePerson = await GetPersonSerializedFromSession();
+        }
+
+        public async Task OnPostReplaceName()
+        {
+            // Remove first
+            await _cache.RemoveAsync(CacheKeys.Person);
+
+            // Then add new
+            await _cache.SetAsync(CacheKeys.Person, new Person() { Name = NewName, Age = 36 });
+            CachePerson = await GetPersonSerializedFromSession();
+        }
+
+        public async Task OnPostClearCache()
+        {
+            await _cache.ClearAsync();
+            CachePerson = string.Empty;
         }
     }
 }

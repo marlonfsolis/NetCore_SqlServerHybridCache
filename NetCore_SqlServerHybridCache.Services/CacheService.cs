@@ -1,21 +1,25 @@
-﻿using System.Data;
+﻿using Microsoft.AspNetCore.Http;
+using NetCore_SqlServerHybridCache.Services.Extensions;
+using System.Data;
 using System.Diagnostics;
 
 namespace NetCore_SqlServerHybridCache.Services;
 
 public class CacheService : ICacheService
 {
+    private readonly IAppMemoryCache _localCache;
     private readonly IConfiguration _configuration;
     private readonly string _prefix;
     private readonly string _connectionString;
     private TimeSpan _absoluteExpirationRelativeToNow;
 
     public CacheService(
-        HybridCache cache, 
+        IAppMemoryCache localCache,
         IConfiguration configuration,
-        string? prefix, 
+        string? prefix,
         TimeSpan absoluteExpirationRelativeToNow)
     {
+        _localCache = localCache;
         _configuration = configuration;
         _prefix = prefix ?? string.Empty;
         _absoluteExpirationRelativeToNow = absoluteExpirationRelativeToNow;
@@ -45,7 +49,7 @@ public class CacheService : ICacheService
         }
         return connectionString;
     }
-    
+
     private SqlConnection GetConnection()
     {
         return new SqlConnection(_connectionString);
@@ -68,9 +72,20 @@ public class CacheService : ICacheService
         return exists;
     }
 
+    private async Task<IEnumerable<string>> GetCacheKeyListFromSource()
+    {
+        DynamicParameters dynParams = new DynamicParameters();
+
+        const string sql = "dbo.usp_getCacheKeyList";
+        using IDbConnection connection = GetConnection();
+        IEnumerable<string> list = await connection.QueryAsync<string>(sql, dynParams);
+
+        return list;
+    }
+
     private async Task<T?> GetFromSourceAsync<T>(string key, CancellationToken token = default)
     {
-        if(token.IsCancellationRequested)
+        if (token.IsCancellationRequested)
         {
             return default(T);
         }
@@ -117,63 +132,191 @@ public class CacheService : ICacheService
         await connection.ExecuteAsync(sql, dynParams);
     }
 
+    private async Task ClearFromSource()
+    {
+        DynamicParameters dynParams = new DynamicParameters();
+
+        string sql = "usp_clearCache";
+        IDbConnection connection = GetConnection();
+        await connection.ExecuteAsync(sql, dynParams);
+    }
+
 
 
     /* Public Method section *********************************************************/
 
-    public async Task<bool> KeyExists(string key)
+    public T? Get<T>(string key)
+    {
+        return GetAsync<T>(key).ConfigureAwait(false).GetAwaiter().GetResult();
+    }
+
+    public async Task<T?> GetAsync<T>(string key)
+    {
+        var response = await TryGetAsync<T>(key);
+        return response.value;
+    }
+
+    public (bool result, T? value) TryGet<T>(string key)
+    {
+        return TryGetAsync<T>(key).ConfigureAwait(false).GetAwaiter().GetResult();
+    }
+
+    public async Task<(bool result, T? value)> TryGetAsync<T>(string key)
     {
         string _key = GetKey(key);
 
-        bool keyExists = await CacheKeyExistsInSource(_key);
-
-        return keyExists;
-    }
-
-    public async Task<T?> Get<T>(string key)
-    {
-        string _key = GetKey(key);
-        var result = await _cache.GetOrCreateAsync(
-            _key,
-            async cancel => await GetFromSourceAsync<T>(_key, cancel),
-            cancellationToken: default
-        );
-
-        return result;
-    }
-
-    public async Task Set(string key, object value)
-    {
-        await Set(key, value, AbsoluteExpirationRelativeToNow);
-    }
-
-    public async Task Set(string key, object value, TimeSpan expirationTime)
-    {
-        if (value is null) return;
-
-        string _key = GetKey(key);
-
-        await _cache.SetAsync(_key, value, new HybridCacheEntryOptions
+        // Try local cache first
+        (bool Success, T? Value) _localRes = _localCache.TryGet<T>(_key);
+        if (_localRes.Success && _localRes.Value != null)
         {
-            Expiration = expirationTime,
-        });
-        //await RemoveLocal(key);
+            return _localRes;
+        }
 
-        await UpdateSourceByKey(_key, value, expirationTime);
+        // Try remote cache
+        try
+        {
+            T? remoteVal = await GetFromSourceAsync<T>(_key);
+            if (remoteVal != null)
+            {
+                // Save it in local cache for next use
+                _localCache.Set(_key, remoteVal);
+                return (true, remoteVal);
+            }
+
+            return (false, default(T));
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e.Message);
+            return (false, default(T));
+        }
+    }
+
+    public IEnumerable<string> GetKeys()
+    {
+        return GetKeysAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+    }
+
+    public async Task<IEnumerable<string>> GetKeysAsync()
+    {
+        try
+        {
+            return await GetCacheKeyListFromSource();
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e.Message);
+            return Enumerable.Empty<string>();
+        }
+    }
+
+    public async Task<bool> KeyExistsAsync(string key)
+    {
+        try
+        {
+            string _key = GetKey(key);
+
+            bool keyExists = await CacheKeyExistsInSource(_key);
+
+            return keyExists;
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e.Message);
+            return false;
+        }
+    }
+
+    public void Set(string key, object value)
+    {
+        Set(key, value, AbsoluteExpirationRelativeToNow);
+    }
+
+    public async Task SetAsync(string key, object value)
+    {
+        await SetAsync(key, value, AbsoluteExpirationRelativeToNow);
+    }
+
+    public void Set(string key, object value, TimeSpan absoluteExpirationRelativeToNow)
+    {
+        SetAsync(key, value, absoluteExpirationRelativeToNow).ConfigureAwait(false).GetAwaiter().GetResult();
+    }
+
+    public async Task SetAsync(string key, object value, TimeSpan absoluteExpirationRelativeToNow)
+    {
+        if (key.IsNullOrEmptyOrWhiteSpace()) return;
+
+        if (value is null)
+        {
+            await RemoveAsync(key);
+            return;
+        }
+
+        // Set in local cache
+        string _key = GetKey(key);
+        _localCache.Set(_key, value, absoluteExpirationRelativeToNow);
+
+        //UpdateLocalKeyVersion(id, key);
+
+
+        // Set in remote session cache.
+        try
+        {
+            await UpdateSourceByKey(_key, value, absoluteExpirationRelativeToNow);
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e.Message);
+        }
     }
 
     public async Task Remove(string key)
     {
-        string _key = GetKey(key);
-
-        await _cache.RemoveAsync(_key);
-
-        await RemoveFromSource(_key);
+        RemoveAsync(key).ConfigureAwait(false).GetAwaiter().GetResult();
     }
 
-    public async Task RemoveLocal(string key)
+    public async Task RemoveAsync(string key)
+    {
+        try
+        {
+            string _key = GetKey(key);
+            await RemoveFromSource(key);
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e.Message);
+        }
+    }
+
+    public void RemoveLocal(string key)
     {
         string _key = GetKey(key);
-        await _cache.RemoveAsync(_key);
+        _localCache.Remove(_key);
+    }
+
+    public void Clear()
+    {
+        ClearAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+    }
+
+    public async Task ClearAsync()
+    {
+        // Remove all local cache keys for this session.
+        var keys = await GetKeysAsync();
+        Parallel.ForEach(keys, (key, cancel) =>
+        {
+            _localCache.Remove(key);
+            //UpdateLocalKeyVersion(id, key);
+        });
+
+        // Clear remote session cache.
+        try
+        {
+            await ClearFromSource();
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e.Message);
+        }
     }
 }

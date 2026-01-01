@@ -1,4 +1,4 @@
-CREATE PROCEDURE usp_getCacheKeyExists 
+CREATE PROCEDURE dbo.usp_getCacheKeyExists 
 (
 	@Key VARCHAR(900)
 )

@@ -1,4 +1,4 @@
-﻿CREATE PROCEDURE usp_setCacheValue
+﻿CREATE PROCEDURE dbo.usp_setCacheValue
 (
 	@Key VARCHAR(900),
 	@Value VARBINARY(MAX),

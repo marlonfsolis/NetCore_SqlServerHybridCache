@@ -1,4 +1,4 @@
-﻿CREATE PROCEDURE usp_deleteCacheValue
+﻿CREATE PROCEDURE dbo.usp_deleteCacheValue
 (
 	@Key VARCHAR(900)
 )

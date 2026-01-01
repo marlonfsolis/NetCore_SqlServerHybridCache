@@ -58,6 +58,7 @@
     <Folder Include="Properties" />
     <Folder Include="Tables" />
     <Folder Include="Scripts" />
+    <Folder Include="Procedures\" />
   </ItemGroup>
   <ItemGroup>
     <Build Include="Procedures\usp_deleteCacheValue.sql" />
@@ -65,5 +66,7 @@
     <Build Include="Procedures\usp_setCacheValue.sql" />
     <Build Include="Tables\AppCache.sql" />
     <Build Include="Procedures\usp_getCacheKeyExists.sql" />
+    <Build Include="Procedures\usp_getCacheKeyList.sql" />
+    <Build Include="Procedures\usp_clearCache.sql" />
   </ItemGroup>
 </Project>
