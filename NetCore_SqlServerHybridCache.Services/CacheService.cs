@@ -177,7 +177,7 @@ public class CacheService : ICacheService
             DateTime utcNow = DateTime.UtcNow;
 
             double elapsedSeconds = (utcNow - _lastRefreshTime).TotalSeconds;
-            if (elapsedSeconds < 10)
+            if (elapsedSeconds < 5)
             {
                 return;
             }
