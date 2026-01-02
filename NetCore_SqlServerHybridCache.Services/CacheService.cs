@@ -134,11 +134,13 @@ public class CacheService : ICacheService
         using MemoryStream ms = new();
         await JsonSerializer.SerializeAsync(ms, value);
 
+        string dataType = $"{typeof(T).FullName}, {typeof(T).Assembly.GetName().Name}";
+
         DynamicParameters dynParams = new DynamicParameters();
         dynParams.Add("@Key", key);
         dynParams.Add("@Value", ms.ToArray());
         dynParams.Add("@AbsoluteExpiration", DateTimeOffset.UtcNow.Add(expirationTime));
-        dynParams.Add("@DataType", typeof(T).FullName);
+        dynParams.Add("@DataType", dataType);
 
         const string sql = "dbo.usp_setCacheValue";
         IDbConnection connection = GetConnection();
@@ -194,10 +196,13 @@ public class CacheService : ICacheService
                         return;
                     }
 
-                    Type? type = Type.GetType(change.DataType)
-                        ?? AppDomain.CurrentDomain.GetAssemblies()
+                    Type? type = Type.GetType(change.DataType);
+                    if (type == null)
+                    {
+                        type = AppDomain.CurrentDomain.GetAssemblies()
                             .Select(a => a.GetType(change.DataType, false, true))
                             .FirstOrDefault(t => t is not null);
+                    }
 
                     if (type is null)
                     {

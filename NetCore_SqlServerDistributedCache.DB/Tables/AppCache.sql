@@ -8,5 +8,5 @@ CREATE TABLE dbo.AppCache
     CacheValue VARBINARY(MAX) NULL, 
     AbsoluteExpiration DATETIMEOFFSET NOT NULL, 
     [TrackingNo] BIGINT NOT NULL DEFAULT 0, 
-    [DataType] VARCHAR(100) NOT NULL
+    [DataType] VARCHAR(1000) NOT NULL
 )
