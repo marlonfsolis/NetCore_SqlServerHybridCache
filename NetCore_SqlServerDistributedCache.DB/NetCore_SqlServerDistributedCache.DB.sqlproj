@@ -68,5 +68,9 @@
     <Build Include="Procedures\usp_getCacheKeyExists.sql" />
     <Build Include="Procedures\usp_getCacheKeyList.sql" />
     <Build Include="Procedures\usp_clearCache.sql" />
+    <Build Include="Procedures\usp_getCacheChanges.sql" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="NetCore_SqlServerDistributedCache.DB.publish.xml" />
   </ItemGroup>
 </Project>

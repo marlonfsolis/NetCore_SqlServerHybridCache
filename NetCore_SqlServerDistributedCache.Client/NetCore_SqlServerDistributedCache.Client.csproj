@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="Middleware\" />
     <Folder Include="Tests\" />
   </ItemGroup>
 

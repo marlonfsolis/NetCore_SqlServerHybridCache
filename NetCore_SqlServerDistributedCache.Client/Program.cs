@@ -25,6 +25,8 @@ app.UseHttpsRedirection();
 
 app.UseRouting();
 
+app.UseHybridCacheStore();
+
 app.MapStaticAssets();
 
 app.MapRazorPages()

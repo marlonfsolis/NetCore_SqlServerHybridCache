@@ -2,7 +2,8 @@
 (
 	@Key VARCHAR(900),
 	@Value VARBINARY(MAX),
-	@AbsoluteExpiration DATETIMEOFFSET
+	@AbsoluteExpiration DATETIMEOFFSET,
+    @DataType VARCHAR(100)
 )
 AS
 BEGIN
@@ -14,10 +15,12 @@ BEGIN
         UPDATE AppCache 
         SET CacheValue = @Value
            ,AbsoluteExpiration = @AbsoluteExpiration
+           ,TrackingNo = TrackingNo + 1
+           ,DataType = @DataType
         WHERE AppCacheKey = @Key;
     END
     ELSE BEGIN
-        INSERT INTO dbo.AppCache (AppCacheKey, CacheValue, AbsoluteExpiration)
-	    VALUES (@Key, @Value, @AbsoluteExpiration);
+        INSERT INTO dbo.AppCache (AppCacheKey, CacheValue, AbsoluteExpiration, DataType)
+	    VALUES (@Key, @Value, @AbsoluteExpiration, @DataType);
     END
 END

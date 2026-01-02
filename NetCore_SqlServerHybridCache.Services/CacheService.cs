@@ -1,8 +1,7 @@
-﻿using Microsoft.AspNetCore.DataProtection.KeyManagement;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Data;
 using System.Diagnostics;
-using System.Threading;
+using System.Reflection.Metadata;
 
 namespace NetCore_SqlServerHybridCache.Services;
 
@@ -18,6 +17,9 @@ public class CacheService : ICacheService
     // This will prevent multiple threads trying to update the same key at the same time.
     // And prevent error on DB transaction when using Memory Optimized table.
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks;
+
+    private long _lastTrackingNo = 0;
+    private DateTime _lastRefreshTime = new();
 
     public CacheService(
         IAppMemoryCache localCache,
@@ -90,6 +92,18 @@ public class CacheService : ICacheService
         return list;
     }
 
+    private async Task<IEnumerable<CacheChange>> GetCacheChangesFromSource()
+    {
+        DynamicParameters dynParams = new DynamicParameters();
+        dynParams.Add("@LastTrackingNo", _lastTrackingNo);
+
+        const string sql = "dbo.usp_getCacheChanges";
+        using IDbConnection connection = GetConnection();
+        IEnumerable<CacheChange> changes = await connection.QueryAsync<CacheChange>(sql, dynParams);
+
+        return changes;
+    }
+
     private async Task<T?> GetFromSourceAsync<T>(string key, CancellationToken token = default)
     {
         if (token.IsCancellationRequested)
@@ -115,7 +129,7 @@ public class CacheService : ICacheService
         return result;
     }
 
-    private async Task UpdateSourceByKey(string key, object value, TimeSpan expirationTime)
+    private async Task UpdateSourceByKey<T>(string key, T value, TimeSpan expirationTime)
     {
         using MemoryStream ms = new();
         await JsonSerializer.SerializeAsync(ms, value);
@@ -124,6 +138,7 @@ public class CacheService : ICacheService
         dynParams.Add("@Key", key);
         dynParams.Add("@Value", ms.ToArray());
         dynParams.Add("@AbsoluteExpiration", DateTimeOffset.UtcNow.Add(expirationTime));
+        dynParams.Add("@DataType", typeof(T).FullName);
 
         const string sql = "dbo.usp_setCacheValue";
         IDbConnection connection = GetConnection();
@@ -152,6 +167,69 @@ public class CacheService : ICacheService
 
 
     /* Public Method section *********************************************************/
+
+    public async Task RefreshLocalCacheFromSource()
+    {
+        try
+        {
+            DateTime utcNow = DateTime.UtcNow;
+
+            double elapsedSeconds = (utcNow - _lastRefreshTime).TotalSeconds;
+            if (elapsedSeconds < 10)
+            {
+                return;
+            }
+
+            Debug.WriteLine("Checking changes...");
+
+            // Get current version from remote cache
+            IEnumerable<CacheChange> remoteChanges = await GetCacheChangesFromSource();
+            if (remoteChanges.Any())
+            {
+                // Remote cache has changes. Clear local cache for this session.
+                Parallel.ForEach(remoteChanges, (change, cancel) =>
+                {
+                    if (change.DataType.IsNullOrEmptyOrWhiteSpace())
+                    {
+                        return;
+                    }
+
+                    Type? type = Type.GetType(change.DataType)
+                        ?? AppDomain.CurrentDomain.GetAssemblies()
+                            .Select(a => a.GetType(change.DataType, false, true))
+                            .FirstOrDefault(t => t is not null);
+
+                    if (type is null)
+                    {
+                        return;
+                    }
+
+                    using MemoryStream ms = new(change.CacheValue);
+                    ms.Position = 0;
+                    object? result = JsonSerializer.Deserialize(ms, type);
+                    if (result is null)
+                    {
+                        return;
+                    }
+
+                    _localCache.Set(change.AppCacheKey, result);
+                });
+
+                // Update last checked version
+                long remoteTrackingNo = remoteChanges.First().TrackingNo;
+                _lastTrackingNo = remoteTrackingNo;
+
+                Debug.WriteLine($"Got changes with TrackingNo: {remoteTrackingNo}.");
+            }
+
+            // Update last checked time
+            _lastRefreshTime = utcNow;
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e.Message);
+        }
+    }
 
     public T? Get<T>(string key)
     {
@@ -235,22 +313,22 @@ public class CacheService : ICacheService
         }
     }
 
-    public void Set(string key, object value)
+    public void Set<T>(string key, T value)
     {
         Set(key, value, AbsoluteExpirationRelativeToNow);
     }
 
-    public async Task SetAsync(string key, object value)
+    public async Task SetAsync<T>(string key, T value)
     {
         await SetAsync(key, value, AbsoluteExpirationRelativeToNow);
     }
 
-    public void Set(string key, object value, TimeSpan absoluteExpirationRelativeToNow)
+    public void Set<T>(string key, T value, TimeSpan absoluteExpirationRelativeToNow)
     {
         SetAsync(key, value, absoluteExpirationRelativeToNow).ConfigureAwait(false).GetAwaiter().GetResult();
     }
 
-    public async Task SetAsync(string key, object value, TimeSpan absoluteExpirationRelativeToNow)
+    public async Task SetAsync<T>(string key, T value, TimeSpan absoluteExpirationRelativeToNow)
     {
         if (key.IsNullOrEmptyOrWhiteSpace()) return;
 

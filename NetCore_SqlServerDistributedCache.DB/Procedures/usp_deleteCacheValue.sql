@@ -4,6 +4,8 @@
 )
 AS
 BEGIN
-	DELETE dbo.AppCache
+	UPDATE dbo.AppCache 
+	SET CacheValue = NULL
+	   ,TrackingNo = TrackingNo + 1
 	WHERE AppCacheKey = @Key;
 END

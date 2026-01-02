@@ -59,14 +59,14 @@ public interface ICacheService
     /// </summary>
     /// <param name="key"></param>
     /// <param name="value"></param>
-    void Set(string key, object value);
+    void Set<T>(string key, T value);
 
     /// <summary>
     /// Create or overwrite an entry in the cache asynchronously.
     /// </summary>
     /// <param name="key"></param>
     /// <param name="value"></param>
-    Task SetAsync(string key, object value);
+    Task SetAsync<T>(string key, T value);
 
     /// <summary>
     /// Create or overwrite an entry in the cache.
@@ -74,7 +74,7 @@ public interface ICacheService
     /// <param name="key"></param>
     /// <param name="value"></param>
     /// <param name="absoluteExpirationRelativeToNow"></param>
-    void Set(string key, object value, TimeSpan absoluteExpirationRelativeToNow);
+    void Set<T>(string key, T value, TimeSpan absoluteExpirationRelativeToNow);
 
     /// <summary>
     /// Create or overwrite an entry in the cache asynchronously.
@@ -82,7 +82,7 @@ public interface ICacheService
     /// <param name="key"></param>
     /// <param name="value"></param>
     /// <param name="absoluteExpirationRelativeToNow"></param>
-    Task SetAsync(string key, object value, TimeSpan absoluteExpirationRelativeToNow);
+    Task SetAsync<T>(string key, T value, TimeSpan absoluteExpirationRelativeToNow);
 
 
     /// <summary>
@@ -115,4 +115,10 @@ public interface ICacheService
     /// Remove all entries in cache asynchronously.
     /// </summary>
     Task ClearAsync();
+
+    /// <summary>
+    /// Asynchronously updates the local cache with the latest data from the source.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous refresh operation.</returns>
+    Task RefreshLocalCacheFromSource();
 }
