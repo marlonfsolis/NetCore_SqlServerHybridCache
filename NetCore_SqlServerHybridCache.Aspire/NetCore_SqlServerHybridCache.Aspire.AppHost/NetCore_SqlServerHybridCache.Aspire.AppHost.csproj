@@ -13,6 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\NetCore_SqlServerDistributedCache.Client\NetCore_SqlServerDistributedCache.Client.csproj" />
     <ProjectReference Include="..\..\NetCore_SqlServerDistributedCache.ReverseProxy\NetCore_SqlServerDistributedCache.ReverseProxy.csproj" />
+    <ProjectReference Include="..\..\NetCore_SqlServerHybridCache.Test\NetCore_SqlServerHybridCache.Test.csproj" />
     <ProjectReference Include="..\NetCore_SqlServerHybridCache.Aspire.ApiService\NetCore_SqlServerHybridCache.Aspire.ApiService.csproj" />
     <ProjectReference Include="..\NetCore_SqlServerHybridCache.Aspire.Web\NetCore_SqlServerHybridCache.Aspire.Web.csproj" />
   </ItemGroup>

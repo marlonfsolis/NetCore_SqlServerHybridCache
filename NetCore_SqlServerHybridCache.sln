@@ -23,6 +23,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetCore_SqlServerHybridCach
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetCore_SqlServerDistributedCache.ReverseProxy", "NetCore_SqlServerDistributedCache.ReverseProxy\NetCore_SqlServerDistributedCache.ReverseProxy.csproj", "{AC5F87EF-F4DD-B3BA-8CE9-B76A3FF0D1AF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetCore_SqlServerHybridCache.Test", "NetCore_SqlServerHybridCache.Test\NetCore_SqlServerHybridCache.Test.csproj", "{E93FCC2C-91F1-8AE7-63C8-F3FBCA60494B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -71,6 +73,10 @@ Global
 		{AC5F87EF-F4DD-B3BA-8CE9-B76A3FF0D1AF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AC5F87EF-F4DD-B3BA-8CE9-B76A3FF0D1AF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AC5F87EF-F4DD-B3BA-8CE9-B76A3FF0D1AF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E93FCC2C-91F1-8AE7-63C8-F3FBCA60494B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E93FCC2C-91F1-8AE7-63C8-F3FBCA60494B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E93FCC2C-91F1-8AE7-63C8-F3FBCA60494B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E93FCC2C-91F1-8AE7-63C8-F3FBCA60494B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

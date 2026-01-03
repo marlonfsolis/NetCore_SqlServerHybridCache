@@ -1,0 +1,44 @@
+﻿@page "/ConcurrencyTest"
+
+@rendermode InteractiveServer
+
+<PageTitle>Concurrency Test</PageTitle>
+
+<h3>Concurrency Test</h3>
+<p>
+    On this page, you can perform concurrency tests to ensure that the hybrid cache behaves correctly under concurrent access.
+</p>
+<p>
+    Here we can test:
+    <ul>
+        <li>SQL Server concurrency</li>
+        <li>YARP load balancing</li>
+        <li>Multi‑instance behavior</li>
+        <li>Race conditions</li>
+        <li>Lock contention</li>
+    </ul>
+    @if (ConcurrencyTestStatus != "Running...")
+    {
+        <button class="btn btn-primary" @onclick="ExecConcurrencyTest">Start Concurrency Test</button>
+    }
+    else
+    {
+        <button class="btn btn-danger" @onclick="CancelConcurrencyTest">Cancel Test</button>
+    }
+
+</p>
+
+<div>
+    <h4>Test Status</h4>
+    <p>@ConcurrencyTestStatus</p>
+</div>
+<div>
+    <h4>Test Errors</h4>
+    <ul>
+        @foreach (var err in ConcurrencyTestErrors)
+        {
+            <li>@(err ?? "Empty")</li>
+        }
+    </ul>
+</div>
+

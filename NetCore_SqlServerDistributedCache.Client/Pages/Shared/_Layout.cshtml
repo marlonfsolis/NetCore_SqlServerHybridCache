@@ -26,12 +26,29 @@
                         <li class="nav-item">
                             <a class="nav-link text-dark" asp-area="" asp-page="/Privacy">Privacy</a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-page="/Test">Test</a>
+                        </li>
                     </ul>
                 </div>
             </div>
         </nav>
     </header>
     <div class="container">
+        <div class="row">
+            <div class="col">
+                @{
+                    var InstanceName = Configuration.GetValue<string>("InstanceName");
+                    if (InstanceName is null)
+                    {
+                        InstanceName = "Not found";
+                    }
+
+                }
+                <p>Instance Name: @InstanceName</p>
+            </div>
+        </div>
+
         <main role="main" class="pb-3">
             @RenderBody()
         </main>

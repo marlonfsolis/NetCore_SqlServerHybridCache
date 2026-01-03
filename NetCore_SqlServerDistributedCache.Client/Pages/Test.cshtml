@@ -1,0 +1,14 @@
+﻿@page
+@model NetCore_SqlServerDistributedCache.Client.Pages.TestModel
+@{
+}
+
+<h1>Test Page</h1>
+<p>This is a test page for Hybrid Cachen.</p>
+
+<p>
+    The value of "TestKey" in the cache is: <strong>@Model.TestKeyValue</strong>
+</p>
+<div>
+    <a asp-page-handler="Result">Show TestKey Value</a>
+</div>
