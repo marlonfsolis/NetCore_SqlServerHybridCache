@@ -23,7 +23,7 @@ public class AppMemoryCache : IAppMemoryCache
             _keys = keys;
         }
     }
-    
+
     public T? Get<T>(string key)
     {
         (bool Success, T? Value) result = TryGet<T>(key);
@@ -32,7 +32,7 @@ public class AppMemoryCache : IAppMemoryCache
 
     public (bool Success, T? Value) TryGet<T>(string key)
     {
-        bool success =_memoryCache.TryGetValue<T>(key, out T? value);
+        bool success = _memoryCache.TryGetValue<T>(key, out T? value);
         return (success, value);
     }
 
@@ -68,7 +68,7 @@ public class AppMemoryCache : IAppMemoryCache
         return result;
     }
 
-public void Set<T>(string key, T value)
+    public void Set<T>(string key, T value)
     {
         _memoryCache.Set(key, value);
     }
