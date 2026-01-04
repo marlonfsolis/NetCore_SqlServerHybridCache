@@ -1,4 +1,4 @@
-﻿namespace NetCore_SqlServerHybridCache.Services;
+﻿namespace NetCore_SqlServerHybridCache.Services.Models;
 
 public record CacheChange
 {

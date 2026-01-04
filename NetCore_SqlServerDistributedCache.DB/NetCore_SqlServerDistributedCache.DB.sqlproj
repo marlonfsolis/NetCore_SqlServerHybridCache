@@ -59,18 +59,26 @@
     <Folder Include="Tables" />
     <Folder Include="Scripts" />
     <Folder Include="Procedures\" />
+    <Folder Include="Procedures\SessionCache" />
+    <Folder Include="Procedures\AppCache" />
   </ItemGroup>
   <ItemGroup>
-    <Build Include="Procedures\usp_deleteCacheValue.sql" />
-    <Build Include="Procedures\usp_getCacheValue.sql" />
-    <Build Include="Procedures\usp_setCacheValue.sql" />
     <Build Include="Tables\AppCache.sql" />
-    <Build Include="Procedures\usp_getCacheKeyExists.sql" />
-    <Build Include="Procedures\usp_getCacheKeyList.sql" />
-    <Build Include="Procedures\usp_clearCache.sql" />
-    <Build Include="Procedures\usp_getCacheChanges.sql" />
+    <Build Include="Tables\SessionCache.sql" />
+    <Build Include="Procedures\AppCache\usp_clearCache.sql" />
+    <Build Include="Procedures\AppCache\usp_deleteCacheValue.sql" />
+    <Build Include="Procedures\SessionCache\usp_getSessionKeyExists.sql" />
+    <Build Include="Procedures\SessionCache\usp_getSessionKeyList.sql" />
+    <Build Include="Procedures\SessionCache\usp_getSessionChanges.sql" />
   </ItemGroup>
   <ItemGroup>
     <None Include="NetCore_SqlServerDistributedCache.DB.publish.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Build Include="Procedures\AppCache\usp_getCacheChanges.sql" />
+    <Build Include="Procedures\AppCache\usp_getCacheKeyExists.sql" />
+    <Build Include="Procedures\AppCache\usp_getCacheKeyList.sql" />
+    <Build Include="Procedures\AppCache\usp_getCacheValue.sql" />
+    <Build Include="Procedures\AppCache\usp_setCacheValue.sql" />
   </ItemGroup>
 </Project>
