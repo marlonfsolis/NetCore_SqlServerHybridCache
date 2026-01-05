@@ -70,6 +70,13 @@
     <Build Include="Procedures\SessionCache\usp_getSessionKeyExists.sql" />
     <Build Include="Procedures\SessionCache\usp_getSessionKeyList.sql" />
     <Build Include="Procedures\SessionCache\usp_getSessionChanges.sql" />
+    <Build Include="Procedures\SessionCache\usp_getSessionValue.sql" />
+    <Build Include="Procedures\SessionCache\usp_setSessionValue.sql" />
+    <Build Include="Procedures\SessionCache\usp_deleteSessionValue.sql" />
+    <Build Include="Procedures\SessionCache\usp_clearSession.sql" />
+    <Build Include="Procedures\SessionCache\usp_refreshSession.sql" />
+    <Build Include="Tables\SessionCacheValue.sql" />
+    <Build Include="Procedures\SessionCache\usp_deleteSessionCache.sql" />
   </ItemGroup>
   <ItemGroup>
     <None Include="NetCore_SqlServerDistributedCache.DB.publish.xml" />

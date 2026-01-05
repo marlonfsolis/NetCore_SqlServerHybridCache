@@ -1,3 +1,4 @@
+using NetCore_SqlServerDistributedCache.Client.Middleware;
 using NetCore_SqlServerHybridCache.Services.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,6 +25,8 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseRouting();
+
+app.UseMiddleware<SessionSetupMiddleware>();
 
 app.UseHybridCacheStore();
 

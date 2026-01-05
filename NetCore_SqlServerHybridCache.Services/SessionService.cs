@@ -15,8 +15,14 @@ public class SessionService : ISessionService
     private readonly string _connectionString;
     private TimeSpan _absoluteExpirationRelativeToNow;
 
-    // _lastTrackingNo
+
     private ConcurrentDictionary<string, long> _lastTrackingNoDic = new();
+    private ConcurrentDictionary<string, DateTimeOffset> _lastRefreshTimeDic = new();
+
+    // We need to lock per key in each session id. Only for write operations.
+    // This will prevent multiple threads trying to update the same key at the same time.
+    // And prevent error on DB transaction when using Memory Optimized table.
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new();
 
     public SessionService(
         IAppMemoryCache localCache,
@@ -91,7 +97,7 @@ public class SessionService : ISessionService
 
         const string sql = "dbo.usp_getSessionKeyExists";
         using IDbConnection connection = GetConnection();
-        bool exists = await connection.QueryFirstAsync<bool>(sql, dynParams);
+        bool exists = await connection.QueryFirstAsync<bool>(sql, dynParams, commandType: CommandType.StoredProcedure);
 
         return exists;
     }
@@ -103,7 +109,7 @@ public class SessionService : ISessionService
 
         const string sql = "dbo.usp_getSessionKeyList";
         using IDbConnection connection = GetConnection();
-        IEnumerable<string> list = await connection.QueryAsync<string>(sql, dynParams);
+        IEnumerable<string> list = await connection.QueryAsync<string>(sql, dynParams, commandType: CommandType.StoredProcedure);
 
         return list;
     }
@@ -116,56 +122,223 @@ public class SessionService : ISessionService
 
         const string sql = "dbo.usp_getSessionChanges";
         using IDbConnection connection = GetConnection();
-        IEnumerable<SessionChange> changes = await connection.QueryAsync<SessionChange>(sql, dynParams);
+        IEnumerable<SessionChange> changes = await connection.QueryAsync<SessionChange>(sql, dynParams, commandType: CommandType.StoredProcedure);
 
         return changes;
     }
 
+    private async Task<T?> GetFromSourceAsync<T>(string id, string key, CancellationToken token = default)
+    {
+        if (token.IsCancellationRequested)
+        {
+            return default(T);
+        }
+
+        DynamicParameters dynParams = new DynamicParameters();
+        dynParams.Add("@Id", id);
+        dynParams.Add("@Key", key);
+        dynParams.Add("@UtcNow", DateTimeOffset.UtcNow);
+
+        string sql = "dbo.usp_getSessionValue";
+        using IDbConnection connection = GetConnection();
+        byte[]? bytes = await connection.QueryFirstOrDefaultAsync<byte[]>(sql, dynParams, commandType: CommandType.StoredProcedure);
+        if (bytes is null || bytes.Length == 0)
+        {
+            return default(T);
+        }
+
+        using MemoryStream ms = new(bytes);
+        T? result = JsonSerializer.Deserialize<T>(ms);
+
+        return result;
+    }
+
+    private async Task UpdateSource<T>(string id, string key, T value, TimeSpan expirationTime)
+    {
+        using MemoryStream ms = new();
+        await JsonSerializer.SerializeAsync(ms, value);
+
+        string dataType = $"{typeof(T).FullName}, {typeof(T).Assembly.GetName().Name}";
+
+        DynamicParameters dynParams = new DynamicParameters();
+        dynParams.Add("@Id", id);
+        dynParams.Add("@Key", key);
+        dynParams.Add("@Value", ms.ToArray());
+        dynParams.Add("@AbsoluteExpiration", DateTimeOffset.UtcNow.Add(expirationTime));
+        dynParams.Add("@DataType", dataType);
+
+        const string sql = "dbo.usp_setSessionValue";
+        IDbConnection connection = GetConnection();
+        await connection.ExecuteAsync(sql, dynParams, commandType: CommandType.StoredProcedure);
+    }
+
+    private async Task RemoveFromSource(string id, string key)
+    {
+        DynamicParameters dynParams = new DynamicParameters();
+        dynParams.Add("@Id", id);
+        dynParams.Add("@Key", key);
+
+        string sql = "dbo.usp_deleteSessionValue";
+        IDbConnection connection = GetConnection();
+        await connection.ExecuteAsync(sql, dynParams, commandType: CommandType.StoredProcedure);
+    }
+
+    private async Task ClearFromSource(string id)
+    {
+        DynamicParameters dynParams = new DynamicParameters();
+        dynParams.Add("@Id", id);
+
+        string sql = "dbo.usp_clearSession";
+        IDbConnection connection = GetConnection();
+        await connection.ExecuteAsync(sql, dynParams, commandType: CommandType.StoredProcedure);
+    }
+
+    private async Task DeleteSessionFromSource(string id)
+    {
+        DynamicParameters dynParams = new DynamicParameters();
+        dynParams.Add("@Id", id);
+
+        string sql = "dbo.usp_deleteSessionCache";
+        IDbConnection connection = GetConnection();
+        await connection.ExecuteAsync(sql, dynParams, commandType: CommandType.StoredProcedure);
+    }
+
+    private async Task RefreshLocalSessionFromSource(string id, long lastTrackingNo, DateTimeOffset utcNow)
+    {
+        try
+        {
+            Debug.WriteLine("Checking changes...");
+
+            // Get current version from remote cache
+            IEnumerable<SessionChange> remoteChanges = await GetSessionChangesFromSource(id, lastTrackingNo);
+            if (remoteChanges.Any())
+            {
+                // Remote session has changes. Update local cache for this session.
+                Parallel.ForEach(remoteChanges, (change, cancel) =>
+                {
+                    string _key = LocalKey(change.SessionId, change.SessionKey);
+
+                    if (change.SessionValue is null)
+                    {
+                        _localCache.Remove(_key);
+                        return;
+                    }
+
+                    if (change.DataType.IsNullOrEmptyOrWhiteSpace())
+                    {
+                        return;
+                    }
+
+                    Type? type = Type.GetType(change.DataType);
+                    if (type == null)
+                    {
+                        type = AppDomain.CurrentDomain.GetAssemblies()
+                            .Select(a => a.GetType(change.DataType, false, true))
+                            .FirstOrDefault(t => t is not null);
+                    }
+                    if (type is null)
+                    {
+                        return;
+                    }
+
+                    using MemoryStream ms = new(change.SessionValue);
+                    ms.Position = 0;
+                    object? result = JsonSerializer.Deserialize(ms, type);
+                    if (result is null)
+                    {
+                        return;
+                    }
+
+                    _localCache.Set(_key, result);
+                });
+
+                // Update last checked version
+                long remoteTrackingNo = remoteChanges.First().TrackingNo;
+                _lastTrackingNoDic[id] = remoteTrackingNo;
+
+                Debug.WriteLine($"Got changes with TrackingNo: {remoteTrackingNo}.");
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e.Message);
+        }
+    }
+
+    private async Task RefreshSessionInSource(string id, DateTimeOffset utcNow, TimeSpan expirationTime)
+    {
+        try
+        {
+            DynamicParameters dynParams = new DynamicParameters();
+            dynParams.Add("@Id", id);
+            dynParams.Add("@AbsoluteExpiration", utcNow.Add(expirationTime));
+            dynParams.Add("@UtcNow", utcNow);
+
+            string sql = "dbo.usp_refreshSession";
+            IDbConnection connection = GetConnection();
+            await connection.ExecuteAsync(sql, dynParams, commandType: CommandType.StoredProcedure);
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e.Message);
+        }
+    }
 
 
     /* Public Method section *********************************************************/
 
 
-    public void CreateSession()
+    public T? Get<T>(string key)
     {
-        throw new NotImplementedException();
+        return GetAsync<T>(key).ConfigureAwait(false).GetAwaiter().GetResult();
     }
 
-    public Task CreateSessionAsync()
+    public async Task<T?> GetAsync<T>(string key)
     {
-        throw new NotImplementedException();
+        var response = await TryGetAsync<T>(key);
+        return response.value;
     }
 
-    public Task CreateSessionAsync(string id)
+    public (bool result, T? value) TryGet<T>(string key)
     {
-        throw new NotImplementedException();
+        return TryGetAsync<T>(key).ConfigureAwait(false).GetAwaiter().GetResult();
     }
 
-    public TItem? Get<TItem>(string key)
+    public async Task<(bool result, T? value)> TryGetAsync<T>(string key)
     {
-        throw new NotImplementedException();
+        return await TryGetAsync<T>(GetId(), key);
     }
 
-    public Task<TItem?> GetAsync<TItem>(string key)
+    public async Task<(bool result, T? value)> TryGetAsync<T>(string id, string key)
     {
-        throw new NotImplementedException();
-    }
+        string _key = LocalKey(id, key);
 
-    public (bool result, TItem? value) TryGet<TItem>(string key)
-    {
-        throw new NotImplementedException();
-    }
+        // Try local cache first
+        (bool Success, T? Value) _localRes = _localCache.TryGet<T>(_key);
+        if (_localRes.Success && _localRes.Value != null)
+        {
+            return _localRes;
+        }
 
-    public Task<(bool result, TItem? value)> TryGetAsync<TItem>(string key)
-    {
-        throw new NotImplementedException();
-    }
+        // Try remote cache
+        try
+        {
+            T? remoteVal = await GetFromSourceAsync<T>(id, _key, CancellationToken.None);
+            if (remoteVal != null)
+            {
+                // Save it in local cache for next use
+                _localCache.Set(_key, remoteVal);
+                return (true, remoteVal);
+            }
 
-    public Task<(bool result, TItem? value)> TryGetAsync<TItem>(string id, string key)
-    {
-        throw new NotImplementedException();
+            return (false, default(T));
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e.Message);
+            return (false, default(T));
+        }
     }
-
 
     public IEnumerable<string> GetKeys()
     {
@@ -208,93 +381,260 @@ public class SessionService : ISessionService
         }
     }
 
-    public void Set(string key, object value)
+    public void Set<T>(string key, T value)
     {
-        throw new NotImplementedException();
+        Set(key, value, AbsoluteExpirationRelativeToNow);
     }
 
-    public void Set(string key, object value, TimeSpan absoluteExpirationRelativeToNow)
+    public void Set<T>(string key, T value, TimeSpan absoluteExpirationRelativeToNow)
     {
-        throw new NotImplementedException();
+        SetAsync(key, value, absoluteExpirationRelativeToNow).ConfigureAwait(false).GetAwaiter().GetResult();
     }
 
-    public Task SetAsync(string key, object value)
+    public async Task SetAsync<T>(string key, T value)
     {
-        throw new NotImplementedException();
+        await SetAsync(key, value, AbsoluteExpirationRelativeToNow);
     }
 
-    public Task SetAsync(string key, object value, TimeSpan absoluteExpirationRelativeToNow)
+    public async Task SetAsync<T>(string key, T value, TimeSpan absoluteExpirationRelativeToNow)
     {
-        throw new NotImplementedException();
+        await SetAsync(GetId(), key, value, absoluteExpirationRelativeToNow);
     }
 
-    public Task SetAsync(string id, string key, object value, TimeSpan absoluteExpirationRelativeToNow)
+    public async Task SetAsync<T>(string id, string key, T value, TimeSpan absoluteExpirationRelativeToNow)
     {
-        throw new NotImplementedException();
+        if (key.IsNullOrEmptyOrWhiteSpace()) return;
+
+        if (value is null)
+        {
+            await RemoveAsync(key);
+            return;
+        }
+
+        string _key = LocalKey(id, key);
+
+        Task[] tasks =
+        [
+            Task.Run(() =>
+            {
+                // Set in local cache
+                _localCache.Set(_key, value, absoluteExpirationRelativeToNow);
+            }),
+
+            Task.Run(async () =>
+            {
+                // Set in remote session cache.
+                SemaphoreSlim semaphore = _locks.GetOrAdd(_key, _ => new SemaphoreSlim(1, 1));
+                await semaphore.WaitAsync();
+                try
+                {
+                    await UpdateSource(id, _key, value, absoluteExpirationRelativeToNow);
+                }
+                catch (Exception e)
+                {
+                    Debug.WriteLine(e.Message);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            }),
+        ];
+
+        await Task.WhenAll(tasks);
     }
 
     public void RefreshSession()
     {
-        throw new NotImplementedException();
+        RefreshSessionAsync().ConfigureAwait(false).GetAwaiter().GetResult();
     }
 
-    public Task RefreshSessionAsync()
+    public async Task RefreshSessionAsync()
     {
-        throw new NotImplementedException();
+        await RefreshSessionAsync(GetId());
     }
 
-    public Task RefreshSessionAsync(string id)
+    public async Task RefreshSessionAsync(string id)
     {
-        throw new NotImplementedException();
+        DateTimeOffset utcNow = DateTimeOffset.UtcNow;
+
+        long lastTrackingNo = _lastTrackingNoDic.GetOrAdd(id, 0);
+        DateTimeOffset lastRefreshTime = _lastRefreshTimeDic.GetOrAdd(id, utcNow);
+        double elapsedSeconds = (utcNow - lastRefreshTime).TotalSeconds;
+        if (elapsedSeconds < 5)
+        {
+            return;
+        }
+
+        Task[] tasks =
+        [
+            RefreshLocalSessionFromSource(id, lastTrackingNo, utcNow),
+            RefreshSessionInSource(id, utcNow, _absoluteExpirationRelativeToNow)
+        ];
+        await Task.WhenAll(tasks);
+
+        // Update last checked time
+        _lastRefreshTimeDic[id] = utcNow;
     }
 
     public void Remove(string key)
     {
-        throw new NotImplementedException();
+        RemoveAsync(key).ConfigureAwait(false).GetAwaiter().GetResult();
     }
 
-    public Task RemoveAsync(string key)
+    public async Task RemoveAsync(string key)
     {
-        throw new NotImplementedException();
+        await RemoveAsync(GetId(), key);
     }
 
-    public Task RemoveAsync(string id, string key)
+    public async Task RemoveAsync(string id, string key)
     {
-        throw new NotImplementedException();
+        string _key = LocalKey(id, key);
+
+        Task[] tasks =
+        [
+            Task.Run(() =>
+            {
+                // Remove from local cache
+                _localCache.Remove(_key);
+            }),
+
+            Task.Run(async () => 
+            {
+                SemaphoreSlim semaphore = _locks.GetOrAdd(_key, _ => new SemaphoreSlim(1, 1));
+                await semaphore.WaitAsync();
+                try
+                {
+                    await RemoveFromSource(id, _key);
+                }
+                catch (Exception e)
+                {
+                    Debug.WriteLine(e.Message);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            }),
+        ];
+
+        await Task.WhenAll(tasks);
     }
 
     public void Clear()
     {
-        throw new NotImplementedException();
+        ClearAsync().ConfigureAwait(false).GetAwaiter().GetResult();
     }
 
-    public Task ClearAsync()
+    public async Task ClearAsync()
     {
-        throw new NotImplementedException();
+        await ClearAsync(GetId());
     }
 
-    public Task ClearAsync(string id)
+    public async Task ClearAsync(string id)
     {
-        throw new NotImplementedException();
+        Task[] tasks =
+        [
+            Task.Run(async () =>
+            {
+                // Remove all local cache keys for this session.
+                var keys = await GetKeysAsync(id);
+                Parallel.ForEach(keys, (key, cancel) =>
+                {
+                    _localCache.Remove(key);
+                });
+            }),
+
+            Task.Run(async () =>
+            {
+                // Lock all keys
+                IEnumerable<KeyValuePair<string, SemaphoreSlim>> locks = _locks.Where(x => x.Key.StartsWith(id));
+                foreach (var l in locks)
+                {
+                    await l.Value.WaitAsync();
+                }
+
+                // Clear remote session cache.
+                try
+                {
+                    await ClearFromSource(id);
+                }
+                catch (Exception e)
+                {
+                    Debug.WriteLine(e.Message);
+                }
+                finally
+                {
+                    // Release all keys
+                    foreach (var l in locks)
+                    {
+                        l.Value.Release();
+                    }
+                }
+            }),
+        ];
+
+        await Task.WhenAll(tasks);
     }
 
     public void Delete()
     {
-        throw new NotImplementedException();
+        DeleteAsync().ConfigureAwait(false).GetAwaiter().GetResult();
     }
 
-    public Task DeleteAsync()
+    public async Task DeleteAsync()
     {
-        throw new NotImplementedException();
+        await DeleteAsync(GetId());
     }
 
-    public Task DeleteAsync(string id)
+    public async Task DeleteAsync(string id)
     {
-        throw new NotImplementedException();
+        Task[] tasks =
+        [
+            Task.Run(async () =>
+            {
+                // Remove all local cache keys for this session.
+                var keys = await GetKeysAsync(id);
+                Parallel.ForEach(keys, (key, cancel) =>
+                {
+                    _localCache.Remove(key);
+                });
+            }),
+
+            Task.Run(async () =>
+            {
+                // Lock all keys
+                IEnumerable<KeyValuePair<string, SemaphoreSlim>> locks = _locks.Where(x => x.Key.StartsWith(id));
+                foreach (var l in locks)
+                {
+                    await l.Value.WaitAsync();
+                }
+
+                // Delete remote session cache.
+                try
+                {
+                    await DeleteSessionFromSource(id);
+                }
+                catch (Exception e)
+                {
+                    Debug.WriteLine(e.Message);
+                }
+                finally
+                {
+                    // Delete all keys
+                    foreach (var l in locks)
+                    {
+                        _locks.TryRemove(l);
+                    }
+                }
+            }),
+        ];
+
+        await Task.WhenAll(tasks);
     }
 
     public void SetDefaultSlidingExpiration(TimeSpan slidingExpiration)
     {
-        throw new NotImplementedException();
+        AbsoluteExpirationRelativeToNow = slidingExpiration;
     }
 }

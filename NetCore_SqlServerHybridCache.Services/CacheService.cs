@@ -76,7 +76,7 @@ public class CacheService : ICacheService
 
         const string sql = "dbo.usp_getCacheKeyExists";
         using IDbConnection connection = GetConnection();
-        bool exists = await connection.QueryFirstAsync<bool>(sql, dynParams);
+        bool exists = await connection.QueryFirstAsync<bool>(sql, dynParams, commandType: CommandType.StoredProcedure);
 
         return exists;
     }
@@ -87,7 +87,7 @@ public class CacheService : ICacheService
 
         const string sql = "dbo.usp_getCacheKeyList";
         using IDbConnection connection = GetConnection();
-        IEnumerable<string> list = await connection.QueryAsync<string>(sql, dynParams);
+        IEnumerable<string> list = await connection.QueryAsync<string>(sql, dynParams, commandType: CommandType.StoredProcedure);
 
         return list;
     }
@@ -99,7 +99,7 @@ public class CacheService : ICacheService
 
         const string sql = "dbo.usp_getCacheChanges";
         using IDbConnection connection = GetConnection();
-        IEnumerable<CacheChange> changes = await connection.QueryAsync<CacheChange>(sql, dynParams);
+        IEnumerable<CacheChange> changes = await connection.QueryAsync<CacheChange>(sql, dynParams, commandType: CommandType.StoredProcedure);
 
         return changes;
     }
@@ -117,7 +117,7 @@ public class CacheService : ICacheService
 
         string sql = "dbo.usp_getCacheValue";
         using IDbConnection connection = GetConnection();
-        byte[]? bytes = await connection.QueryFirstOrDefaultAsync<byte[]>(sql, dynParams);
+        byte[]? bytes = await connection.QueryFirstOrDefaultAsync<byte[]>(sql, dynParams, commandType: CommandType.StoredProcedure);
         if (bytes is null || bytes.Length == 0)
         {
             return default(T);
@@ -154,7 +154,7 @@ public class CacheService : ICacheService
 
         string sql = "usp_deleteCacheValue";
         IDbConnection connection = GetConnection();
-        await connection.ExecuteAsync(sql, dynParams);
+        await connection.ExecuteAsync(sql, dynParams, commandType: CommandType.StoredProcedure);
     }
 
     private async Task ClearFromSource()
@@ -163,7 +163,7 @@ public class CacheService : ICacheService
 
         string sql = "usp_clearCache";
         IDbConnection connection = GetConnection();
-        await connection.ExecuteAsync(sql, dynParams);
+        await connection.ExecuteAsync(sql, dynParams, commandType: CommandType.StoredProcedure);
     }
 
 
@@ -188,7 +188,7 @@ public class CacheService : ICacheService
             IEnumerable<CacheChange> remoteChanges = await GetCacheChangesFromSource();
             if (remoteChanges.Any())
             {
-                // Remote cache has changes. Clear local cache for this session.
+                // Remote cache has changes. Update local cache for this session.
                 Parallel.ForEach(remoteChanges, (change, cancel) =>
                 {
                     if (change.DataType.IsNullOrEmptyOrWhiteSpace())

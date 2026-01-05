@@ -21,6 +21,8 @@ public static class CacheStoreExtension
             return cacheService;
         });
 
+        services.AddSingleton<ISessionService, SessionService>();
+
         return services;
     }
 }

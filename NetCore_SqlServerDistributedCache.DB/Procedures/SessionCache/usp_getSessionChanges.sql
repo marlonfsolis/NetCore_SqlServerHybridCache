@@ -1,21 +1,22 @@
 ﻿CREATE PROCEDURE dbo.usp_getSessionChanges
 (
-	@Id NVARCHAR(100),
+	@Id VARCHAR(449),
 	@LastTrackingNo BIGINT
 )
 AS
 BEGIN
     DECLARE @TrackingNo BIGINT;
 
-    SELECT @TrackingNo = MAX(sc.TrackingNo)
-    FROM dbo.SessionCache sc;
+    SELECT @TrackingNo = MAX(scv.TrackingNo)
+    FROM dbo.SessionCacheValue scv;
 
     SELECT
-        sc.SessionId
-       ,sc.SessionKey
-       ,sc.SessionValue
+        SessionId = scv.SessionId
+       ,SessionKey = scv.SessionKey
+       ,SessionValue = scv.SessionValue
        ,TrackingNo = @TrackingNo
-       ,DataType = sc.DataType
-    FROM dbo.SessionCache sc
-    WHERE sc.TrackingNo > @LastTrackingNo;
+       ,DataType = scv.DataType
+    FROM dbo.SessionCacheValue scv
+    WHERE scv.SessionId = @Id
+    AND scv.TrackingNo > @LastTrackingNo;
 END

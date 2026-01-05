@@ -1,7 +1,7 @@
 CREATE PROCEDURE dbo.usp_getSessionKeyExists 
 (
-	@Id NVARCHAR(449),
-	@Key VARCHAR(1000)
+	@Id VARCHAR(449),
+	@Key VARCHAR(800)
 )
 AS
 BEGIN
@@ -9,9 +9,9 @@ BEGIN
 
 	IF EXISTS (
 		SELECT 1
-		FROM dbo.SessionCache sc
-		WHERE sc.SessionId = @Id
-		AND sc.SessionKey = @Key
+		FROM dbo.SessionCacheValue scv
+		WHERE scv.SessionId = @Id
+		AND scv.SessionKey = @Key
 	) BEGIN
 		SET @Exists = 1;
 	END

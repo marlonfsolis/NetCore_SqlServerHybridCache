@@ -18,16 +18,13 @@ public class HybridCacheMiddleware
 
     public async Task Invoke(
         HttpContext context,
-        ICacheService cache)
+        ICacheService cache,
+        ISessionService session)
     {
-        //// Get-Set the App Session ID
-        //GetSetAppSessionId(context);
-
         Debug.WriteLine("Refreshing local cache in middleware...");
 
-        //string sessionId = (string)context.Items[ContextItemsKeys.QuantumSessionId] ?? string.Empty;
         await cache.RefreshLocalCacheFromSource();
-        //await cache.RefreshSessionAsync(sessionId);
+        await session.RefreshSessionAsync();
 
         await _next(context);
     }

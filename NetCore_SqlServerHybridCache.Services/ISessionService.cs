@@ -3,62 +3,44 @@
 public interface ISessionService
 {
     /// <summary>
-    /// Creates session record.
-    /// </summary>
-    void CreateSession();
-
-    /// <summary>
-    /// Creates session record asynchronously.
-    /// </summary>
-    /// <returns></returns>
-    Task CreateSessionAsync();
-
-    /// <summary>
-    /// Creates session record asynchronously.
-    /// </summary>
-    /// param name="id" Session ID
-    /// <returns></returns>
-    Task CreateSessionAsync(string id);
-
-    /// <summary>
     /// Get value from cache by given key.
     /// </summary>
-    /// <typeparam name="TItem"></typeparam>
+    /// <typeparam name="T"></typeparam>
     /// <param name="key"></param>
     /// <returns></returns>
-    TItem? Get<TItem>(string key);
+    T? Get<T>(string key);
 
     /// <summary>
     /// Get value from cache by given key asynchronously.
     /// </summary>
-    /// <typeparam name="TItem"></typeparam>
+    /// <typeparam name="T"></typeparam>
     /// <param name="key"></param>
     /// <returns></returns>
-    Task<TItem?> GetAsync<TItem>(string key);
+    Task<T?> GetAsync<T>(string key);
 
     /// <summary>
     /// Try to get the value from cache by given key. Return if was found or not.
     /// </summary>
-    /// <typeparam name="TItem"></typeparam>
+    /// <typeparam name="T"></typeparam>
     /// <param name="key"></param>
     /// <returns></returns>
-    (bool result, TItem? value) TryGet<TItem>(string key);
+    (bool result, T? value) TryGet<T>(string key);
 
     /// Try to get the value from cache by given key. Return if was found or not asynchronously.
     /// </summary>
-    /// <typeparam name="TItem"></typeparam>
+    /// <typeparam name="T"></typeparam>
     /// <param name="key"></param>
     /// <param name="value"></param>
     /// <returns></returns>
-    Task<(bool result, TItem? value)> TryGetAsync<TItem>(string key);
+    Task<(bool result, T? value)> TryGetAsync<T>(string key);
 
     /// Try to get the value from cache by given sessionId and key. Return if was found or not asynchronously.
     /// </summary>
-    /// <typeparam name="TItem"></typeparam>
+    /// <typeparam name="T"></typeparam>
     /// <param name="key"></param>
     /// <param name="value"></param>
     /// <returns></returns>
-    Task<(bool result, TItem? value)> TryGetAsync<TItem>(string id, string key);
+    Task<(bool result, T? value)> TryGetAsync<T>(string id, string key);
 
     /// <summary>
     /// Get a list of existing keys in cache for one session.
@@ -91,14 +73,14 @@ public interface ISessionService
     /// </summary>
     /// <param name="key"></param>
     /// <param name="value"></param>
-    void Set(string key, object value);
+    void Set<T>(string key, T value);
 
     /// <summary>
     /// Create or overwrite an entry in the cache asynchronously.
     /// </summary>
     /// <param name="key"></param>
     /// <param name="value"></param>
-    Task SetAsync(string key, object value);
+    Task SetAsync<T>(string key, T value);
 
     /// <summary>
     /// Create or overwrite an entry in the cache.
@@ -106,7 +88,7 @@ public interface ISessionService
     /// <param name="key"></param>
     /// <param name="value"></param>
     /// <param name="absoluteExpirationRelativeToNow"></param>
-    void Set(string key, object value, TimeSpan absoluteExpirationRelativeToNow);
+    void Set<T>(string key, T value, TimeSpan absoluteExpirationRelativeToNow);
 
     /// <summary>
     /// Create or overwrite an entry in the cache asynchronously.
@@ -114,7 +96,7 @@ public interface ISessionService
     /// <param name="key"></param>
     /// <param name="value"></param>
     /// <param name="absoluteExpirationRelativeToNow"></param>
-    Task SetAsync(string key, object value, TimeSpan absoluteExpirationRelativeToNow);
+    Task SetAsync<T>(string key, T value, TimeSpan absoluteExpirationRelativeToNow);
 
     /// <summary>
     /// Create or overwrite an entry in the cache asynchronously.
@@ -123,20 +105,23 @@ public interface ISessionService
     /// <param name="key"></param>
     /// <param name="value"></param>
     /// <param name="absoluteExpirationRelativeToNow"></param>
-    Task SetAsync(string id, string key, object value, TimeSpan absoluteExpirationRelativeToNow);
+    Task SetAsync<T>(string id, string key, T value, TimeSpan absoluteExpirationRelativeToNow);
 
     /// <summary>
     /// RefreshAsync the session with a new expiration time.
+    /// And updates the local cache with the latest data from the source.
     /// </summary>
     void RefreshSession();
 
     /// <summary>
     /// RefreshAsync the session with a new expiration time asynchronously.
+    /// And updates the local cache with the latest data from the source.
     /// </summary>
     Task RefreshSessionAsync();
 
     /// <summary>
     /// RefreshAsync the session with a new expiration time asynchronously.
+    /// And updates the local cache with the latest data from the source.
     /// </summary>
     Task RefreshSessionAsync(string id);
 
@@ -199,4 +184,5 @@ public interface ISessionService
     /// </summary>
     /// <param name="slidingExpiration"></param>
     void SetDefaultSlidingExpiration(TimeSpan slidingExpiration);
+
 }
