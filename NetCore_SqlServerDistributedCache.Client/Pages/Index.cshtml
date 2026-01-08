@@ -52,3 +52,17 @@
         <button type="submit" asp-page-handler="ClearCache" class="btn btn-success">Clear Cache</button>
     </div>
 </form>
+
+
+<form method="post" class="row g-3">
+    <h3>Test Session</h3>
+    <div class="col-auto">
+        <label>Array size:</label>
+        <span>
+            <input type="text" name="ArraySize" id="ArraySize" value="10000" />
+        </span>
+    </div>
+    <div class="col-auto">
+        <button type="submit" asp-page-handler="SerializeComparason" class="btn btn-success">Run Comparason</button>
+    </div>
+</form>

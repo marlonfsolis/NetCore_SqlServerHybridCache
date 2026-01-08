@@ -148,7 +148,7 @@ public class SessionService : ISessionService
         }
 
         using MemoryStream ms = new(bytes);
-        T? result = JsonSerializer.Deserialize<T>(ms);
+        T? result = await JsonSerializer.DeserializeAsync<T>(ms);
 
         return result;
     }

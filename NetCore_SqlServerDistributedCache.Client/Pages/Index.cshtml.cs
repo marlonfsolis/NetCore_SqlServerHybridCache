@@ -10,11 +10,16 @@ namespace NetCore_SqlServerDistributedCache.Client.Pages
     {
         private readonly ILogger<IndexModel> _logger;
         private readonly ICacheService _cache;
+        private readonly ISessionService _session;
 
-        public IndexModel(ILogger<IndexModel> logger, ICacheService cache)
+        public IndexModel(
+            ILogger<IndexModel> logger, 
+            ICacheService cache,
+            ISessionService session)
         {
             _logger = logger;
             _cache = cache;
+            _session = session;
         }
 
         /* Properties section */
@@ -22,6 +27,8 @@ namespace NetCore_SqlServerDistributedCache.Client.Pages
         [BindProperty]
         public string NewName { get; set; } = string.Empty;
         public string CachePerson { get; set; } = string.Empty;
+        [BindProperty]
+        public int ArraySize { get; set; }
 
 
 
@@ -66,6 +73,20 @@ namespace NetCore_SqlServerDistributedCache.Client.Pages
         {
             await _cache.ClearAsync();
             CachePerson = string.Empty;
+        }
+
+        public async Task OnPostSerializeComparason()
+        {
+            List<Person> people = new List<Person>(ArraySize);
+            for (int i = 0; i < ArraySize; i++)
+            {
+                Person p = new Person() { Name = $"Name_{i}", Age = i };
+                people.Add(p);
+            }
+
+            await _session.SetAsync("People", people);
+            
+            var peopleFromCache = await _session.GetAsync<List<Person>>("People");
         }
     }
 }
