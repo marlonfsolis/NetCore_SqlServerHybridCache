@@ -26,11 +26,11 @@ public interface ICacheService
     /// <returns></returns>
     (bool result, T? value) TryGet<T>(string key);
 
+    /// <summary>
     /// Try to get the value from cache by given key. Return if was found or not asynchronously.
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <param name="key"></param>
-    /// <param name="value"></param>
     /// <returns></returns>
     Task<(bool result, T? value)> TryGetAsync<T>(string key);
 
