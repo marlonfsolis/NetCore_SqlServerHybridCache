@@ -56,6 +56,7 @@ public class CacheService : ICacheService
         {
             throw new ArgumentNullException(nameof(connectionString));
         }
+
         return connectionString;
     }
 
@@ -69,104 +70,171 @@ public class CacheService : ICacheService
         return $"{Prefix}{key}";
     }
 
-    private async Task<bool> CacheKeyExistsInSource(string key)
+    private async Task LogError(string? message, string? detail)
     {
         DynamicParameters dynParams = new DynamicParameters();
-        dynParams.Add("@Key", key);
+        dynParams.Add("@ErrorMessage", message);
+        dynParams.Add("@ErrorDetail", detail);
 
-        const string sql = "dbo.usp_getCacheKeyExists";
-        using IDbConnection connection = GetConnection();
-        bool exists = await connection.QueryFirstAsync<bool>(sql, dynParams, commandType: CommandType.StoredProcedure);
+        const string sql = "dbo.usp_logError";
+        SqlConnection connection = GetConnection();
+        await connection.ExecuteAsync(sql, dynParams, commandType: CommandType.StoredProcedure);
+    }
 
-        return exists;
+    private async Task<bool> CacheKeyExistsInSource(string key)
+    {
+        try
+        {
+            DynamicParameters dynParams = new DynamicParameters();
+            dynParams.Add("@Key", key);
+
+            const string sql = "dbo.usp_getCacheKeyExists";
+            using IDbConnection connection = GetConnection();
+            bool exists =
+                await connection.QueryFirstAsync<bool>(sql, dynParams, commandType: CommandType.StoredProcedure);
+
+            return exists;
+        }
+        catch (Exception e)
+        {
+            await LogError(e.Message, e.StackTrace);
+            return false;
+        }
     }
 
     private async Task<IEnumerable<string>> GetCacheKeyListFromSource()
     {
-        DynamicParameters dynParams = new DynamicParameters();
+        try
+        {
+            DynamicParameters dynParams = new DynamicParameters();
 
-        const string sql = "dbo.usp_getCacheKeyList";
-        using IDbConnection connection = GetConnection();
-        IEnumerable<string> list = await connection.QueryAsync<string>(sql, dynParams, commandType: CommandType.StoredProcedure);
+            const string sql = "dbo.usp_getCacheKeyList";
+            using IDbConnection connection = GetConnection();
+            IEnumerable<string> list =
+                await connection.QueryAsync<string>(sql, dynParams, commandType: CommandType.StoredProcedure);
 
-        return list;
+            return list;
+        }
+        catch (Exception e)
+        {
+            await LogError(e.Message, e.StackTrace);
+            return [];
+        }
     }
 
     private async Task<IEnumerable<CacheChange>> GetCacheChangesFromSource()
     {
-        DynamicParameters dynParams = new DynamicParameters();
-        dynParams.Add("@LastTrackingNo", _lastTrackingNo);
+        try
+        {
+            DynamicParameters dynParams = new DynamicParameters();
+            dynParams.Add("@LastTrackingNo", _lastTrackingNo);
 
-        const string sql = "dbo.usp_getCacheChanges";
-        using IDbConnection connection = GetConnection();
-        IEnumerable<CacheChange> changes = await connection.QueryAsync<CacheChange>(
-            sql, dynParams, commandType: CommandType.StoredProcedure);
+            const string sql = "dbo.usp_getCacheChanges";
+            using IDbConnection connection = GetConnection();
+            IEnumerable<CacheChange> changes = await connection.QueryAsync<CacheChange>(
+                sql, dynParams, commandType: CommandType.StoredProcedure);
 
-        return changes;
+            return changes;
+        }
+        catch (Exception e)
+        {
+            await LogError(e.Message, e.StackTrace);
+            return [];
+        }
     }
 
     private async Task<T?> GetFromSourceAsync<T>(string key, CancellationToken token = default)
     {
-        if (token.IsCancellationRequested)
+        try
         {
-            return default(T);
+            if (token.IsCancellationRequested)
+            {
+                return default(T);
+            }
+
+            DynamicParameters dynParams = new DynamicParameters();
+            dynParams.Add("@Key", key);
+            dynParams.Add("@UtcNow", DateTimeOffset.UtcNow);
+
+            const string sql = "dbo.usp_getCacheValue";
+            using IDbConnection connection = GetConnection();
+            byte[]? bytes =
+                await connection.QueryFirstOrDefaultAsync<byte[]>(sql, dynParams,
+                    commandType: CommandType.StoredProcedure);
+            if (bytes is null || bytes.Length == 0)
+            {
+                return default(T);
+            }
+
+            using MemoryStream ms = new(bytes);
+            T? result = JsonSerializer.Deserialize<T>(ms);
+
+            return result;
         }
-
-        DynamicParameters dynParams = new DynamicParameters();
-        dynParams.Add("@Key", key);
-        dynParams.Add("@UtcNow", DateTimeOffset.UtcNow);
-
-        const string sql = "dbo.usp_getCacheValue";
-        using IDbConnection connection = GetConnection();
-        byte[]? bytes = await connection.QueryFirstOrDefaultAsync<byte[]>(sql, dynParams, commandType: CommandType.StoredProcedure);
-        if (bytes is null || bytes.Length == 0)
+        catch (Exception e)
         {
-            return default(T);
+            await LogError(e.Message, e.StackTrace);
+            return default;
         }
-
-        using MemoryStream ms = new(bytes);
-        T? result = JsonSerializer.Deserialize<T>(ms);
-
-        return result;
     }
 
     private async Task UpdateSourceByKey<T>(string key, T value, TimeSpan expirationTime)
     {
-        using MemoryStream ms = new();
-        await JsonSerializer.SerializeAsync(ms, value);
+        try
+        {
+            using MemoryStream ms = new();
+            await JsonSerializer.SerializeAsync(ms, value);
 
-        string dataType = $"{typeof(T).FullName}, {typeof(T).Assembly.GetName().Name}";
+            string dataType = $"{typeof(T).FullName}, {typeof(T).Assembly.GetName().Name}";
 
-        DynamicParameters dynParams = new DynamicParameters();
-        dynParams.Add("@Key", key);
-        dynParams.Add("@Value", ms.ToArray());
-        dynParams.Add("@AbsoluteExpiration", DateTimeOffset.UtcNow.Add(expirationTime));
-        dynParams.Add("@DataType", dataType);
+            DynamicParameters dynParams = new DynamicParameters();
+            dynParams.Add("@Key", key);
+            dynParams.Add("@Value", ms.ToArray());
+            dynParams.Add("@AbsoluteExpiration", DateTimeOffset.UtcNow.Add(expirationTime));
+            dynParams.Add("@DataType", dataType);
 
-        const string sql = "dbo.usp_setCacheValue";
-        IDbConnection connection = GetConnection();
-        await connection.ExecuteAsync(sql, dynParams, commandType: CommandType.StoredProcedure);
+            const string sql = "dbo.usp_setCacheValue";
+            IDbConnection connection = GetConnection();
+            await connection.ExecuteAsync(sql, dynParams, commandType: CommandType.StoredProcedure);
+        }
+        catch (Exception e)
+        {
+            await LogError(e.Message, e.StackTrace);
+        }
     }
 
     private async Task RemoveFromSource(string key)
     {
-        DynamicParameters dynParams = new DynamicParameters();
-        dynParams.Add("@Key", key);
+        try
+        {
+            DynamicParameters dynParams = new DynamicParameters();
+            dynParams.Add("@Key", key);
 
-        const string sql = "usp_deleteCacheValue";
-        IDbConnection connection = GetConnection();
-        await connection.ExecuteAsync(sql, dynParams, commandType: CommandType.StoredProcedure);
+            const string sql = "usp_deleteCacheValue";
+            IDbConnection connection = GetConnection();
+            await connection.ExecuteAsync(sql, dynParams, commandType: CommandType.StoredProcedure);
+        }
+        catch (Exception e)
+        {
+            await LogError(e.Message, e.StackTrace);
+        }
     }
 
     private async Task ClearFromSource()
     {
-        DynamicParameters dynParams = new DynamicParameters();
+        try
+        {
+            DynamicParameters dynParams = new DynamicParameters();
 
-        const string sql = "usp_clearCache";
-        IDbConnection connection = GetConnection();
-        await connection.ExecuteAsync(sql, dynParams, commandType: CommandType.StoredProcedure);
+            const string sql = "usp_clearCache";
+            IDbConnection connection = GetConnection();
+            await connection.ExecuteAsync(sql, dynParams, commandType: CommandType.StoredProcedure);
+        }
+        catch (Exception e)
+        {
+            await LogError(e.Message, e.StackTrace);
+        }
     }
-
 
 
     /* Public Method section *********************************************************/
@@ -233,7 +301,7 @@ public class CacheService : ICacheService
         }
         catch (Exception e)
         {
-            Debug.WriteLine(e.Message);
+            await LogError(e.Message, e.StackTrace);
         }
     }
 
@@ -255,28 +323,28 @@ public class CacheService : ICacheService
 
     public async Task<(bool result, T? value)> TryGetAsync<T>(string key)
     {
-        string _key = GetKey(key);
-
-        // Try local cache first
-        (bool Success, T? Value) _localRes = _localCache.TryGet<T>(_key);
-        if (_localRes.Success && _localRes.Value != null)
-        {
-            return _localRes;
-        }
-
-        // Try remote cache
         try
         {
+            string _key = GetKey(key);
+
+            // Try local cache first
+            (bool Success, T? Value) _localRes = _localCache.TryGet<T>(_key);
+            if (_localRes.Success && _localRes.Value != null)
+            {
+                return _localRes;
+            }
+
+            // Try remote cache
             T? remoteVal = await GetFromSourceAsync<T>(_key);
             if (remoteVal == null) return (false, default(T));
-            
+
             // Save it in local cache for next use
             _localCache.Set(_key, remoteVal);
             return (true, remoteVal);
         }
         catch (Exception e)
         {
-            Debug.WriteLine(e.Message);
+            await LogError(e.Message, e.StackTrace);
             return (false, default(T));
         }
     }
@@ -294,7 +362,7 @@ public class CacheService : ICacheService
         }
         catch (Exception e)
         {
-            Debug.WriteLine(e.Message);
+            await LogError(e.Message, e.StackTrace);
             return [];
         }
     }
@@ -304,14 +372,12 @@ public class CacheService : ICacheService
         try
         {
             string _key = GetKey(key);
-
             bool keyExists = await CacheKeyExistsInSource(_key);
-
             return keyExists;
         }
         catch (Exception e)
         {
-            Debug.WriteLine(e.Message);
+            await LogError(e.Message, e.StackTrace);
             return false;
         }
     }
@@ -333,35 +399,36 @@ public class CacheService : ICacheService
 
     public async Task SetAsync<T>(string key, T value, TimeSpan absoluteExpirationRelativeToNow)
     {
-        if (key.IsNullOrEmptyOrWhiteSpace()) return;
-
-        if (value is null)
-        {
-            await RemoveAsync(key);
-            return;
-        }
-
-        // Set in local cache
-        string _key = GetKey(key);
-        _localCache.Set(_key, value, absoluteExpirationRelativeToNow);
-
-        //UpdateLocalKeyVersion(id, key);
-
-
-        // Set in remote session cache.
-        SemaphoreSlim semaphore = _locks.GetOrAdd(_key, _ => new SemaphoreSlim(1, 1));
-        await semaphore.WaitAsync();
         try
         {
-            await UpdateSourceByKey(_key, value, absoluteExpirationRelativeToNow);
+            if (key.IsNullOrEmptyOrWhiteSpace()) return;
+
+            if (value is null)
+            {
+                await RemoveAsync(key);
+                return;
+            }
+
+            // Set in local cache
+            string _key = GetKey(key);
+            _localCache.Set(_key, value, absoluteExpirationRelativeToNow);
+
+
+            // Set in remote session cache.
+            SemaphoreSlim semaphore = _locks.GetOrAdd(_key, _ => new SemaphoreSlim(1, 1));
+            await semaphore.WaitAsync();
+            try
+            {
+                await UpdateSourceByKey(_key, value, absoluteExpirationRelativeToNow);
+            }
+            finally
+            {
+                semaphore.Release();
+            }
         }
         catch (Exception e)
         {
-            Debug.WriteLine(e.Message);
-        }
-        finally
-        {
-            semaphore.Release();
+            await LogError(e.Message, e.StackTrace);
         }
     }
 
@@ -372,21 +439,24 @@ public class CacheService : ICacheService
 
     public async Task RemoveAsync(string key)
     {
-        string _key = GetKey(key);
-
-        SemaphoreSlim semaphore = _locks.GetOrAdd(_key, _ => new SemaphoreSlim(1, 1));
-        await semaphore.WaitAsync();
         try
         {
-            await RemoveFromSource(_key);
+            string _key = GetKey(key);
+
+            SemaphoreSlim semaphore = _locks.GetOrAdd(_key, _ => new SemaphoreSlim(1, 1));
+            await semaphore.WaitAsync();
+            try
+            {
+                await RemoveFromSource(_key);
+            }
+            finally
+            {
+                semaphore.Release();
+            }
         }
         catch (Exception e)
         {
-            Debug.WriteLine(e.Message);
-        }
-        finally
-        {
-            semaphore.Release();
+            await LogError(e.Message, e.StackTrace);
         }
     }
 
@@ -403,36 +473,35 @@ public class CacheService : ICacheService
 
     public async Task ClearAsync()
     {
-        // Remove all local cache keys for this session.
-        IEnumerable<string> keys = await GetKeysAsync();
-        Parallel.ForEach(keys, (key) =>
-        {
-            _localCache.Remove(key);
-            //UpdateLocalKeyVersion(id, key);
-        });
-
-        // Lock all keys
-        foreach (KeyValuePair<string, SemaphoreSlim> l in _locks)
-        {
-            await l.Value.WaitAsync();
-        }
-
-        // Clear remote session cache.
         try
         {
-            await ClearFromSource();
+            // Remove all local cache keys for this session.
+            IEnumerable<string> keys = await GetKeysAsync();
+            Parallel.ForEach(keys, (key) =>
+            {
+                _localCache.Remove(key);
+            });
+
+            // Lock all keys
+            foreach (KeyValuePair<string, SemaphoreSlim> l in _locks)
+            {
+                await l.Value.WaitAsync();
+            }
+
+            // Clear remote session cache.
+            try
+            {
+                await ClearFromSource();
+            }
+            finally
+            {
+                // Release all keys
+                _locks.Clear();
+            }
         }
         catch (Exception e)
         {
-            Debug.WriteLine(e.Message);
-        }
-        finally
-        {
-            // Release all keys
-            foreach (KeyValuePair<string, SemaphoreSlim> l in _locks)
-            {
-                l.Value.Release();
-            }
+            await LogError(e.Message, e.StackTrace);
         }
     }
 }
