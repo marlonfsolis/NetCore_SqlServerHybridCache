@@ -1,12 +1,12 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
 using System.Collections.Concurrent;
 
-namespace NetCore_SqlServerHybridCache.Services.Extensions;
+namespace NetCore_SqlServerHybridCache.Services;
 
 public class AppMemoryCache : IAppMemoryCache
 {
     private readonly IMemoryCache _memoryCache;
-    private readonly string _keys_keyName = "ApplicationKeys_12DF24MFVG334SDF34";
+    private const string _keys_keyName = "ApplicationKeys_12DF24MFVG334SDF34";
     private readonly ConcurrentDictionary<string, byte> _keys;
 
     public AppMemoryCache(IMemoryCache memoryCache)
@@ -32,7 +32,7 @@ public class AppMemoryCache : IAppMemoryCache
 
     public (bool Success, T? Value) TryGet<T>(string key)
     {
-        bool success = _memoryCache.TryGetValue<T>(key, out T? value);
+        bool success = _memoryCache.TryGetValue(key, out T? value);
         return (success, value);
     }
 
@@ -44,9 +44,9 @@ public class AppMemoryCache : IAppMemoryCache
     public IEnumerable<string> GetKeys(MemoryCacheKeySearchType searchType, string partialKey)
     {
         IEnumerable<string> result;
-        if (!_memoryCache.TryGetValue<ConcurrentDictionary<string, byte>>(_keys_keyName, out var keyDict) || keyDict == null)
+        if (!_memoryCache.TryGetValue(_keys_keyName, out ConcurrentDictionary<string, byte>? keyDict) || keyDict == null)
         {
-            return Enumerable.Empty<string>();
+            return [];
         }
 
         switch (searchType)

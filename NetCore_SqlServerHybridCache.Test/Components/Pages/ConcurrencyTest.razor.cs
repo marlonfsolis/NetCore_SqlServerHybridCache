@@ -6,7 +6,7 @@ namespace NetCore_SqlServerHybridCache.Test.Components.Pages;
 public partial class ConcurrencyTest
 {
     public string ConcurrencyTestStatus { get; set; } = "Not started";
-    public List<string> ConcurrencyTestErrors { get; set; } = new List<string>();
+    public List<string> ConcurrencyTestErrors { get; set; } = [];
     public CancellationTokenSource MyCancellationTokenSource { get; set; } = new CancellationTokenSource();
     public CancellationToken MyCancellationToken { get; set; }
 

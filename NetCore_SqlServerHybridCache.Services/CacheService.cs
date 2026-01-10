@@ -18,8 +18,8 @@ public class CacheService : ICacheService
     // And prevent error on DB transaction when using Memory Optimized table.
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks;
 
-    private long _lastTrackingNo = 0;
-    private DateTime _lastRefreshTime = new();
+    private long _lastTrackingNo;
+    private DateTime _lastRefreshTime;
 
     public CacheService(
         IAppMemoryCache localCache,
@@ -99,7 +99,8 @@ public class CacheService : ICacheService
 
         const string sql = "dbo.usp_getCacheChanges";
         using IDbConnection connection = GetConnection();
-        IEnumerable<CacheChange> changes = await connection.QueryAsync<CacheChange>(sql, dynParams, commandType: CommandType.StoredProcedure);
+        IEnumerable<CacheChange> changes = await connection.QueryAsync<CacheChange>(
+            sql, dynParams, commandType: CommandType.StoredProcedure);
 
         return changes;
     }
@@ -115,7 +116,7 @@ public class CacheService : ICacheService
         dynParams.Add("@Key", key);
         dynParams.Add("@UtcNow", DateTimeOffset.UtcNow);
 
-        string sql = "dbo.usp_getCacheValue";
+        const string sql = "dbo.usp_getCacheValue";
         using IDbConnection connection = GetConnection();
         byte[]? bytes = await connection.QueryFirstOrDefaultAsync<byte[]>(sql, dynParams, commandType: CommandType.StoredProcedure);
         if (bytes is null || bytes.Length == 0)
@@ -152,7 +153,7 @@ public class CacheService : ICacheService
         DynamicParameters dynParams = new DynamicParameters();
         dynParams.Add("@Key", key);
 
-        string sql = "usp_deleteCacheValue";
+        const string sql = "usp_deleteCacheValue";
         IDbConnection connection = GetConnection();
         await connection.ExecuteAsync(sql, dynParams, commandType: CommandType.StoredProcedure);
     }
@@ -161,7 +162,7 @@ public class CacheService : ICacheService
     {
         DynamicParameters dynParams = new DynamicParameters();
 
-        string sql = "usp_clearCache";
+        const string sql = "usp_clearCache";
         IDbConnection connection = GetConnection();
         await connection.ExecuteAsync(sql, dynParams, commandType: CommandType.StoredProcedure);
     }
@@ -189,7 +190,7 @@ public class CacheService : ICacheService
             if (remoteChanges.Any())
             {
                 // Remote cache has changes. Update local cache for this session.
-                Parallel.ForEach(remoteChanges, (change, cancel) =>
+                Parallel.ForEach(remoteChanges, (change) =>
                 {
                     if (change.DataType.IsNullOrEmptyOrWhiteSpace())
                     {
@@ -243,7 +244,7 @@ public class CacheService : ICacheService
 
     public async Task<T?> GetAsync<T>(string key)
     {
-        var response = await TryGetAsync<T>(key);
+        (bool result, T? value) response = await TryGetAsync<T>(key);
         return response.value;
     }
 
@@ -267,14 +268,11 @@ public class CacheService : ICacheService
         try
         {
             T? remoteVal = await GetFromSourceAsync<T>(_key);
-            if (remoteVal != null)
-            {
-                // Save it in local cache for next use
-                _localCache.Set(_key, remoteVal);
-                return (true, remoteVal);
-            }
-
-            return (false, default(T));
+            if (remoteVal == null) return (false, default(T));
+            
+            // Save it in local cache for next use
+            _localCache.Set(_key, remoteVal);
+            return (true, remoteVal);
         }
         catch (Exception e)
         {
@@ -297,7 +295,7 @@ public class CacheService : ICacheService
         catch (Exception e)
         {
             Debug.WriteLine(e.Message);
-            return Enumerable.Empty<string>();
+            return [];
         }
     }
 
@@ -367,7 +365,7 @@ public class CacheService : ICacheService
         }
     }
 
-    public async Task Remove(string key)
+    public void Remove(string key)
     {
         RemoveAsync(key).ConfigureAwait(false).GetAwaiter().GetResult();
     }
@@ -406,15 +404,15 @@ public class CacheService : ICacheService
     public async Task ClearAsync()
     {
         // Remove all local cache keys for this session.
-        var keys = await GetKeysAsync();
-        Parallel.ForEach(keys, (key, cancel) =>
+        IEnumerable<string> keys = await GetKeysAsync();
+        Parallel.ForEach(keys, (key) =>
         {
             _localCache.Remove(key);
             //UpdateLocalKeyVersion(id, key);
         });
 
         // Lock all keys
-        foreach (var l in _locks)
+        foreach (KeyValuePair<string, SemaphoreSlim> l in _locks)
         {
             await l.Value.WaitAsync();
         }
@@ -431,7 +429,7 @@ public class CacheService : ICacheService
         finally
         {
             // Release all keys
-            foreach (var l in _locks)
+            foreach (KeyValuePair<string, SemaphoreSlim> l in _locks)
             {
                 l.Value.Release();
             }

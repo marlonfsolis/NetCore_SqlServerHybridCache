@@ -360,7 +360,7 @@ public class SessionService : ISessionService
         catch (Exception e)
         {
             Debug.WriteLine(e.Message);
-            return Enumerable.Empty<string>();
+            return [];
         }
     }
 

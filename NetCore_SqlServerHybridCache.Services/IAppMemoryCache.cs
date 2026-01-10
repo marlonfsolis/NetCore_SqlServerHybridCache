@@ -1,4 +1,4 @@
-﻿namespace NetCore_SqlServerHybridCache.Services.Extensions;
+﻿namespace NetCore_SqlServerHybridCache.Services;
 
 public interface IAppMemoryCache
 {

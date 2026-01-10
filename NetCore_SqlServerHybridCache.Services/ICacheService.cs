@@ -90,7 +90,7 @@ public interface ICacheService
     /// </summary>
     /// <param name="key"></param>
     /// <returns></returns>
-    Task Remove(string key);
+    void Remove(string key);
 
     /// <summary>
     /// Remove an entry in cache by key asynchronously.
