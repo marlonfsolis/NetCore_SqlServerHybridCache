@@ -349,16 +349,22 @@ public class CacheService : ICacheService
         }
     }
 
-    public IEnumerable<string> GetKeys()
+    public IEnumerable<string> GetKeys(bool removePrefix = false)
     {
-        return GetKeysAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        return GetKeysAsync(removePrefix).ConfigureAwait(false).GetAwaiter().GetResult();
     }
 
-    public async Task<IEnumerable<string>> GetKeysAsync()
+    public async Task<IEnumerable<string>> GetKeysAsync(bool removePrefix = false)
     {
         try
         {
-            return await GetCacheKeyListFromSource();
+            IEnumerable<string> keys = await GetCacheKeyListFromSource();
+            if (removePrefix)
+            {
+                keys = keys.Select(k => k.StartsWith(Prefix) ? k.Substring(Prefix.Length) : k);
+            }
+
+            return keys;
         }
         catch (Exception e)
         {

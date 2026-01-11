@@ -38,13 +38,13 @@ public interface ICacheService
     /// Get a list of existing keys in cache for one session.
     /// </summary>
     /// <returns></returns>
-    IEnumerable<string> GetKeys();
+    IEnumerable<string> GetKeys(bool removePrefix = false);
 
     /// <summary>
     /// Get a list of existing keys in cache for one session asynchronously.
     /// </summary>
     /// <returns></returns>
-    Task<IEnumerable<string>> GetKeysAsync();
+    Task<IEnumerable<string>> GetKeysAsync(bool removePrefix = false);
 
     /// <summary>
     /// Asynchronously determines whether the specified key exists in the data store.
