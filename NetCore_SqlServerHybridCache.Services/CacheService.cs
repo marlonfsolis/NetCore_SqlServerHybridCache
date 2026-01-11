@@ -260,6 +260,12 @@ public class CacheService : ICacheService
                 // Remote cache has changes. Update local cache for this session.
                 Parallel.ForEach(remoteChanges, (change) =>
                 {
+                    if (change.CacheValue is null || change.CacheValue.Length == 0)
+                    {
+                        Remove(change.AppCacheKey);
+                        return;
+                    }
+
                     if (change.DataType.IsNullOrEmptyOrWhiteSpace())
                     {
                         return;
