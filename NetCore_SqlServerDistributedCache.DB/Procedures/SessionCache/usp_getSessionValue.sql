@@ -2,7 +2,7 @@ CREATE PROCEDURE dbo.usp_getSessionValue
 (
 	@Id VARCHAR(449),
 	@Key VARCHAR(800),
-	@UtcNow DATETIMEOFFSET
+	@UtcNow DATETIME2(7)
 )
 AS
 BEGIN

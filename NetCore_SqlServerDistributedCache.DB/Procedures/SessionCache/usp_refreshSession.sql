@@ -1,8 +1,8 @@
 ﻿CREATE PROCEDURE dbo.usp_refreshSession
 (
     @Id VARCHAR(449),
-    @AbsoluteExpiration DATETIMEOFFSET,
-    @UtcNow DATETIMEOFFSET
+    @AbsoluteExpiration DATETIME2(7),
+    @UtcNow DATETIME2(7)
 )
 AS
 BEGIN

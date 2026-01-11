@@ -1,7 +1,7 @@
 CREATE PROCEDURE dbo.usp_getCacheValue
 (
 	@Key VARCHAR(900),
-	@UtcNow DATETIMEOFFSET
+	@UtcNow DATETIME2(7)
 )
 AS
 BEGIN

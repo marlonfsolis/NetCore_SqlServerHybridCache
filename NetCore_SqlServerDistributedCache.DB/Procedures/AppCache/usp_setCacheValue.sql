@@ -2,7 +2,7 @@
 (
 	@Key VARCHAR(900),
 	@Value VARBINARY(MAX),
-	@AbsoluteExpiration DATETIMEOFFSET,
+	@AbsoluteExpiration DATETIME2(7),
     @DataType VARCHAR(100)
 )
 AS

@@ -17,7 +17,7 @@ public class SessionService : ISessionService
 
 
     private readonly ConcurrentDictionary<string, long> _lastTrackingNoDic = new();
-    private readonly ConcurrentDictionary<string, DateTimeOffset> _lastRefreshTimeDic = new();
+    private readonly ConcurrentDictionary<string, DateTime> _lastRefreshTimeDic = new();
 
     // We need to lock per key in each session id. Only for write operations.
     // This will prevent multiple threads trying to update the same key at the same time.
@@ -147,7 +147,7 @@ public class SessionService : ISessionService
         DynamicParameters dynParams = new DynamicParameters();
         dynParams.Add("@Id", id);
         dynParams.Add("@Key", key);
-        dynParams.Add("@UtcNow", DateTimeOffset.UtcNow);
+        dynParams.Add("@UtcNow", DateTime.UtcNow);
 
         const string sql = "dbo.usp_getSessionValue";
         using IDbConnection connection = GetConnection();
@@ -175,7 +175,7 @@ public class SessionService : ISessionService
         dynParams.Add("@Id", id);
         dynParams.Add("@Key", key);
         dynParams.Add("@Value", ms.ToArray());
-        dynParams.Add("@AbsoluteExpiration", DateTimeOffset.UtcNow.Add(expirationTime));
+        dynParams.Add("@AbsoluteExpiration", DateTime.UtcNow.Add(expirationTime));
         dynParams.Add("@DataType", dataType);
 
         const string sql = "dbo.usp_setSessionValue";
@@ -273,7 +273,7 @@ public class SessionService : ISessionService
         }
     }
 
-    private async Task RefreshSessionInSource(string id, DateTimeOffset utcNow, TimeSpan expirationTime)
+    private async Task RefreshSessionInSource(string id, DateTime utcNow, TimeSpan expirationTime)
     {
         try
         {
@@ -474,10 +474,10 @@ public class SessionService : ISessionService
     {
         try
         {
-            DateTimeOffset utcNow = DateTimeOffset.UtcNow;
+            DateTime utcNow = DateTime.UtcNow;
 
             long lastTrackingNo = _lastTrackingNoDic.GetOrAdd(id, 0);
-            DateTimeOffset lastRefreshTime = _lastRefreshTimeDic.GetOrAdd(id, utcNow);
+            DateTime lastRefreshTime = _lastRefreshTimeDic.GetOrAdd(id, utcNow);
             double elapsedSeconds = (utcNow - lastRefreshTime).TotalSeconds;
             if (elapsedSeconds < 5)
             {

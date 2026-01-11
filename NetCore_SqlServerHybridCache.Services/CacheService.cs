@@ -154,7 +154,7 @@ public class CacheService : ICacheService
 
             DynamicParameters dynParams = new DynamicParameters();
             dynParams.Add("@Key", key);
-            dynParams.Add("@UtcNow", DateTimeOffset.UtcNow);
+            dynParams.Add("@UtcNow", DateTime.UtcNow);
 
             const string sql = "dbo.usp_getCacheValue";
             using IDbConnection connection = GetConnection();
@@ -190,7 +190,7 @@ public class CacheService : ICacheService
             DynamicParameters dynParams = new DynamicParameters();
             dynParams.Add("@Key", key);
             dynParams.Add("@Value", ms.ToArray());
-            dynParams.Add("@AbsoluteExpiration", DateTimeOffset.UtcNow.Add(expirationTime));
+            dynParams.Add("@AbsoluteExpiration", DateTime.UtcNow.Add(expirationTime));
             dynParams.Add("@DataType", dataType);
 
             const string sql = "dbo.usp_setCacheValue";

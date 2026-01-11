@@ -6,7 +6,7 @@ CREATE TABLE dbo.AppCache
 (
 	AppCacheKey VARCHAR(900) NOT NULL PRIMARY KEY, 
     CacheValue VARBINARY(MAX) NULL, 
-    AbsoluteExpiration DATETIMEOFFSET NOT NULL, 
+    AbsoluteExpiration DATETIME2(7) NOT NULL, 
     TrackingNo BIGINT NOT NULL DEFAULT 0, 
     DataType VARCHAR(1000) NOT NULL
 )
