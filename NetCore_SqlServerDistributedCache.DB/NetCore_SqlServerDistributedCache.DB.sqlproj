@@ -80,6 +80,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="NetCore_SqlServerDistributedCache.DB.publish.xml" />
+    <None Include="PublishProfile.publish.xml" />
   </ItemGroup>
   <ItemGroup>
     <Build Include="Procedures\AppCache\usp_getCacheChanges.sql" />
