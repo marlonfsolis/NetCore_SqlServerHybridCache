@@ -20,7 +20,7 @@ BEGIN
         WHERE AppCacheKey = @Key;
     END
     ELSE BEGIN
-        INSERT INTO dbo.AppCache (AppCacheKey, CacheValue, AbsoluteExpiration, DataType)
-	    VALUES (@Key, @Value, @AbsoluteExpiration, @DataType);
+        INSERT INTO dbo.AppCache (AppCacheKey, CacheValue, AbsoluteExpiration, TrackingNo, DataType)
+	    VALUES (@Key, @Value, @AbsoluteExpiration, 1, @DataType);
     END
 END
