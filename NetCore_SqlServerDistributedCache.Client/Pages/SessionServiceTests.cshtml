@@ -1,14 +1,14 @@
 ﻿@page
-@model IndexModel
+@model NetCore_SqlServerDistributedCache.Client.Pages.SessionServiceTestsModel
 @{
-    ViewData["Title"] = "Home page";
+    ViewData["Title"] = "Session Tests page";
 }
 
 <div class="text-center">
-    <h1 class="display-4">Cache Service Tests</h1>
+    <h1 class="display-4">Session Service Tests</h1>
     <p>
-        This is a Razor Pages app That use a custom implementation of Hybrid Cache.
-        Here you can see how to cache Application Wide data.
+        This is a Razor Pages app That use a custom implementation of Hybrid Session Cache.
+        Here you can see how to cache Session data.
     </p>
 </div>
 
@@ -16,25 +16,25 @@
 
 <div class="row my-5">
     <div class="col-6">
-        <form method="post" id="SetForm">
+        <form method="post" id="SetSessionForm">
             <div class="mb-3">
-                <label for="CacheKeyName" class="form-label">Key Name</label>
-                <input type="text" class="form-control" id="CacheKeyName" name="CacheKeyName">
+                <label for="SessionKeyName" class="form-label">Key Name</label>
+                <input type="text" class="form-control" id="SessionKeyName" name="SessionKeyName">
                 <div class="form-text">This is a unique name.</div>
             </div>
             <div class="mb-3">
-                <label for="CacheKeyValue" class="form-label">Key Value</label>
-                <input type="text" class="form-control" id="CacheKeyValue" name="CacheKeyValue">
+                <label for="SessionKeyValue" class="form-label">Key Value</label>
+                <input type="text" class="form-control" id="SessionKeyValue" name="SessionKeyValue">
                 <div class="form-text">The value that will be saved under the Key Name</div>
             </div>
-            <button type="submit" class="btn btn-primary" asp-page-handler="SetCacheItem">Set Value</button>
-            <button type="submit" class="btn btn-danger" asp-page-handler="ClearCache">Clear</button>
+            <button type="submit" class="btn btn-primary" asp-page-handler="SetSessionItem">Set Value</button>
+            <button type="submit" class="btn btn-danger" asp-page-handler="ClearSession">Clear</button>
         </form>
     </div>
     <div class="col-6">
-        <h5>Cache Key/Value List</h5>
+        <h5>Session Key/Value List</h5>
 
-        <form method="post" id="TableForm">
+        <form method="post" id="TableSessionForm">
             <table class="table table-bordered table-striped">
                 <thead>
                     <tr>
@@ -44,14 +44,14 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (KeyValuePair<string, string> item in Model.CacheValueList)
+                    @foreach (KeyValuePair<string, string> item in Model.SessionValueList)
                     {
                         <tr>
                             <td>@item.Key</td>
                             <td>@item.Value</td>
                             <td>
                                 <button type="submit" class="btn btn-danger"
-                                        asp-page-handler="RemoveCacheItem" asp-route-key="@item.Key">
+                                        asp-page-handler="RemoveSessionItem" asp-route-key="@item.Key">
                                     Delete
                                 </button>
                             </td>
