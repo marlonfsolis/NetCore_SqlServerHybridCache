@@ -22,17 +22,16 @@ namespace NetCore_SqlServerDistributedCache.Client.Pages
             _session = session;
         }
 
-        /* Properties section */
+        /* Properties section ********************************************************************************/
 
-        [BindProperty]
-        public string NewName { get; set; } = string.Empty;
-        public string CachePerson { get; set; } = string.Empty;
-        [BindProperty]
-        public int ArraySize { get; set; }
+        public List<KeyValuePair<string, string>> CacheValueList { get; set; } = [];
 
+        [BindProperty] public string CacheKeyName { get; set; } = string.Empty;
+        [BindProperty] public string CacheKeyValue { get; set; } = string.Empty;
 
 
-        /* Methods section */
+
+        /* Private Methods section ********************************************************************************/
 
         private async Task<string> GetPersonSerializedFromSession()
         {
@@ -40,53 +39,48 @@ namespace NetCore_SqlServerDistributedCache.Client.Pages
             return JsonSerializer.Serialize(p1);
         }
 
+        private async Task SetCacheValueList()
+        {
+            IEnumerable<string> keys = await _cache.GetKeysAsync(true);
+            foreach (string key in keys)
+            {
+                string? cacheValue = await _cache.GetAsync<string>(key);
+                if (cacheValue is not null)
+                {
+                    KeyValuePair<string, string> kvp = new(key, cacheValue);
+                    CacheValueList.Add(kvp);
+                }
+            }
+        }
+        
+        
+        /* Public Methods section ********************************************************************************/       
+
         public async Task OnGet()
         {
             // AppCache work
-            Person? p1 = await _cache.GetAsync<Person?>(CacheKeys.Person);
-            if (p1 is null)
-            {
-                await _cache.SetAsync(CacheKeys.Person, new Person() { Name = "Yenni", Age = 36 });
-            }
 
-            p1 = await _cache.GetAsync<Person>(CacheKeys.Person);
-            CachePerson = p1 is null ? string.Empty : JsonSerializer.Serialize(p1);
+            // Setup the list of KeyValue Cache values
+            await SetCacheValueList();
         }
 
-        public async Task OnPostUpdateName()
-        {
-            await _cache.SetAsync(CacheKeys.Person, new Person() { Name = NewName, Age = 36 });
-            CachePerson = await GetPersonSerializedFromSession();
+        public async Task OnPostSetCacheItem()
+        {   
+            await _cache.SetAsync(CacheKeyName, CacheKeyValue);
+            await SetCacheValueList();
         }
 
-        public async Task OnPostReplaceName()
+        public async Task OnPostRemoveCacheItem(string key)
         {
-            // Remove first
-            await _cache.RemoveAsync(CacheKeys.Person);
-
-            // Then add new
-            await _cache.SetAsync(CacheKeys.Person, new Person() { Name = NewName, Age = 36 });
-            CachePerson = await GetPersonSerializedFromSession();
+            await _cache.RemoveAsync(key);
+            await SetCacheValueList();
         }
 
         public async Task OnPostClearCache()
         {
             await _cache.ClearAsync();
-            CachePerson = string.Empty;
+            await SetCacheValueList();
         }
 
-        public async Task OnPostSerializeComparason()
-        {
-            List<Person> people = new List<Person>(ArraySize);
-            for (int i = 0; i < ArraySize; i++)
-            {
-                Person p = new Person() { Name = $"Name_{i}", Age = i };
-                people.Add(p);
-            }
-
-            await _session.SetAsync("People", people);
-            
-            var peopleFromCache = await _session.GetAsync<List<Person>>("People");
-        }
     }
 }

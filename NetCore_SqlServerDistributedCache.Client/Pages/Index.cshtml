@@ -6,52 +6,68 @@
 
 <div class="text-center">
     <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+    <p>
+        This is a Razor Pages app That use a custom implementation of Hybrid Cache.
+        Here you can see how to cache Application Wide data as well as Session data.
+    </p>
 </div>
 
 <hr />
 
-<div class="row">
-    <div class="col-12">
-        <h1>Hybrid Cache Test</h1>
+<h1>App Cache</h1>
+
+<div class="row my-5">
+    <div class="col-6">
+        <form method="post" id="SetForm">
+            <div class="mb-3">
+                <label for="CacheKeyName" class="form-label">Key Name</label>
+                <input type="text" class="form-control" id="CacheKeyName" name="CacheKeyName">
+                <div class="form-text">This is a unique name.</div>
+            </div>
+            <div class="mb-3">
+                <label for="CacheKeyValue" class="form-label">Cache Value</label>
+                <input type="text" class="form-control" id="CacheKeyValue" name="CacheKeyValue">
+                <div class="form-text">The value that will be saved under the Key Name</div>
+            </div>
+            <button type="submit" class="btn btn-primary" asp-page-handler="SetCacheItem">Set Value</button>
+            <button type="submit" class="btn btn-danger" asp-page-handler="ClearCache">Clear</button>
+        </form>
     </div>
-    <div class="row">
-        <div class="col-3 text-end">
-            <label class="form-label"><strong>Cache key Person:</strong></label>
-        </div>
-        <div class="col-6">
-            <p>@Model.CachePerson</p>
-        </div>
+    <div class="col-6">
+        <h5>Cache Key/Value List</h5>
+
+        <form method="post" id="TableForm">
+            <table class="table table-bordered table-striped">
+                <thead>
+                    <tr>
+                        <th>Key Name</th>
+                        <th>Key Vale</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.CacheValueList)
+                    {
+                        <tr>
+                            <td>@item.Key</td>
+                            <td>@item.Value</td>
+                            <td>
+                                <button type="submit" class="btn btn-danger" 
+                                        asp-page-handler="RemoveCacheItem" asp-route-key="@item.Key">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </form>
     </div>
 </div>
 
 
-<form method="post" class="row g-3">
-    <h3>Update Cache Item</h3>
-    <div class="col-auto">
-        <input name="NewName" class="form-control" />
-    </div>
-    <div class="col-auto">
-        <button type="submit" asp-page-handler="UpdateName" class="btn btn-success">Update</button>
-    </div>
-</form>
 
-<form method="post" class="row g-3">
-    <h3>Replace Cache Item</h3>
-    <div class="col-auto">
-        <input name="NewName" class="form-control" />
-    </div>
-    <div class="col-auto">
-        <button type="submit" asp-page-handler="ReplaceName" class="btn btn-success">Replace</button>
-    </div>
-</form>
 
-<form method="post" class="row g-3">
-    <h3>Clear Cache Items</h3>
-    <div class="col-auto">
-        <button type="submit" asp-page-handler="ClearCache" class="btn btn-success">Clear Cache</button>
-    </div>
-</form>
 
 
 <form method="post" class="row g-3">

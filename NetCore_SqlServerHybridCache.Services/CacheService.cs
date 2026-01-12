@@ -251,8 +251,6 @@ public class CacheService : ICacheService
                 return;
             }
 
-            Debug.WriteLine("Checking changes...");
-
             // Get current version from remote cache
             IEnumerable<CacheChange> remoteChanges = await GetCacheChangesFromSource();
             if (remoteChanges.Any())
@@ -262,15 +260,15 @@ public class CacheService : ICacheService
                 {
                     if (change.CacheValue is null || change.CacheValue.Length == 0)
                     {
-                        Remove(change.AppCacheKey);
+                        _localCache.Remove(change.AppCacheKey);
                         return;
                     }
 
                     if (change.DataType.IsNullOrEmptyOrWhiteSpace())
                     {
+                        // We cannot deserialize without data type.
                         return;
                     }
-
                     Type? type = Type.GetType(change.DataType);
                     if (type == null)
                     {
@@ -278,9 +276,9 @@ public class CacheService : ICacheService
                             .Select(a => a.GetType(change.DataType, false, true))
                             .FirstOrDefault(t => t is not null);
                     }
-
                     if (type is null)
                     {
+                        // We cannot deserialize without data type.
                         return;
                     }
 
@@ -298,8 +296,6 @@ public class CacheService : ICacheService
                 // Update last checked version
                 long remoteTrackingNo = remoteChanges.First().TrackingNo;
                 _lastTrackingNo = remoteTrackingNo;
-
-                Debug.WriteLine($"Got changes with TrackingNo: {remoteTrackingNo}.");
             }
 
             // Update last checked time
@@ -455,6 +451,10 @@ public class CacheService : ICacheService
         {
             string _key = GetKey(key);
 
+            // Remove from local cache
+            _localCache.Remove(_key);
+
+            // Remove from remote session cache.
             SemaphoreSlim semaphore = _locks.GetOrAdd(_key, _ => new SemaphoreSlim(1, 1));
             await semaphore.WaitAsync();
             try
