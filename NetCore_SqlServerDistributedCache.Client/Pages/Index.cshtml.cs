@@ -1,8 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using NetCore_SqlServerDistributedCache.Models;
-using NetCore_SqlServerDistributedCache.Shared.Constants;
-using System.Text.Json;
 
 namespace NetCore_SqlServerDistributedCache.Client.Pages
 {
@@ -25,19 +22,16 @@ namespace NetCore_SqlServerDistributedCache.Client.Pages
         /* Properties section ********************************************************************************/
 
         public List<KeyValuePair<string, string>> CacheValueList { get; set; } = [];
+        public List<KeyValuePair<string, string>> SessionValueList { get; set; } = [];
 
         [BindProperty] public string CacheKeyName { get; set; } = string.Empty;
         [BindProperty] public string CacheKeyValue { get; set; } = string.Empty;
+        [BindProperty] public string SessionKeyName { get; set; } = string.Empty;
+        [BindProperty] public string SessionKeyValue { get; set; } = string.Empty;
 
 
 
         /* Private Methods section ********************************************************************************/
-
-        private async Task<string> GetPersonSerializedFromSession()
-        {
-            var p1 = await _cache.GetAsync<Person>(CacheKeys.Person);
-            return JsonSerializer.Serialize(p1);
-        }
 
         private async Task SetCacheValueList()
         {
@@ -45,23 +39,34 @@ namespace NetCore_SqlServerDistributedCache.Client.Pages
             foreach (string key in keys)
             {
                 string? cacheValue = await _cache.GetAsync<string>(key);
-                if (cacheValue is not null)
-                {
-                    KeyValuePair<string, string> kvp = new(key, cacheValue);
-                    CacheValueList.Add(kvp);
-                }
+                if (cacheValue is null) continue;
+                KeyValuePair<string, string> kvp = new(key, cacheValue);
+                CacheValueList.Add(kvp);
             }
         }
-        
-        
-        /* Public Methods section ********************************************************************************/       
+
+        private async Task SetSessionValueList()
+        {
+            IEnumerable<string> keys = await _session.GetKeysAsync();
+            foreach (string key in keys)
+            {
+                string? sessionValue = await _session.GetAsync<string>(key);
+                if (sessionValue is null) continue;
+                KeyValuePair<string, string> kvp = new(key, sessionValue);
+                SessionValueList.Add(kvp);
+            }
+        }
+
+
+        /* Public Methods section ********************************************************************************/
 
         public async Task OnGet()
         {
             // AppCache work
 
-            // Setup the list of KeyValue Cache values
+            // Set up the list of KeyValue Cache/Session values
             await SetCacheValueList();
+            await SetSessionValueList();
         }
 
         public async Task OnPostSetCacheItem()
@@ -82,5 +87,23 @@ namespace NetCore_SqlServerDistributedCache.Client.Pages
             await SetCacheValueList();
         }
 
+        
+        public async Task OnPostSetSessionItem()
+        {   
+            await _session.SetAsync(CacheKeyName, CacheKeyValue);
+            await SetSessionValueList();
+        }
+
+        public async Task OnPostRemoveSessionItem(string key)
+        {
+            await _session.RemoveAsync(key);
+            await SetSessionValueList();
+        }
+
+        public async Task OnPostClearSession()
+        {
+            await _session.ClearAsync();
+            await SetSessionValueList();
+        }        
     }
 }

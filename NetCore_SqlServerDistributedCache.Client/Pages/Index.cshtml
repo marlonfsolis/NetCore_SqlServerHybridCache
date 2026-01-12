@@ -25,7 +25,7 @@
                 <div class="form-text">This is a unique name.</div>
             </div>
             <div class="mb-3">
-                <label for="CacheKeyValue" class="form-label">Cache Value</label>
+                <label for="CacheKeyValue" class="form-label">Key Value</label>
                 <input type="text" class="form-control" id="CacheKeyValue" name="CacheKeyValue">
                 <div class="form-text">The value that will be saved under the Key Name</div>
             </div>
@@ -46,13 +46,13 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var item in Model.CacheValueList)
+                    @foreach (KeyValuePair<string, string> item in Model.CacheValueList)
                     {
                         <tr>
                             <td>@item.Key</td>
                             <td>@item.Value</td>
                             <td>
-                                <button type="submit" class="btn btn-danger" 
+                                <button type="submit" class="btn btn-danger"
                                         asp-page-handler="RemoveCacheItem" asp-route-key="@item.Key">
                                     Delete
                                 </button>
@@ -65,20 +65,62 @@
     </div>
 </div>
 
+<!-- Session code -------------------------------------------------------------------------------------------------------->
+<br/>
+<br/>
+<br/>
+<hr/>
+<br/>
+<br/>
+<br/>
 
+<h1>Session Cache</h1>
 
-
-
-
-<form method="post" class="row g-3">
-    <h3>Test Session</h3>
-    <div class="col-auto">
-        <label>Array size:</label>
-        <span>
-            <input type="text" name="ArraySize" id="ArraySize" value="10000" />
-        </span>
+<div class="row my-5">
+    <div class="col-6">
+        <form method="post" id="SetSessionForm">
+            <div class="mb-3">
+                <label for="SessionKeyName" class="form-label">Key Name</label>
+                <input type="text" class="form-control" id="SessionKeyName" name="SessionKeyName">
+                <div class="form-text">This is a unique name.</div>
+            </div>
+            <div class="mb-3">
+                <label for="SessionKeyValue" class="form-label">Key Value</label>
+                <input type="text" class="form-control" id="SessionKeyValue" name="SessionKeyValue">
+                <div class="form-text">The value that will be saved under the Key Name</div>
+            </div>
+            <button type="submit" class="btn btn-primary" asp-page-handler="SetSessionItem">Set Value</button>
+            <button type="submit" class="btn btn-danger" asp-page-handler="ClearSession">Clear</button>
+        </form>
     </div>
-    <div class="col-auto">
-        <button type="submit" asp-page-handler="SerializeComparason" class="btn btn-success">Run Comparason</button>
+    <div class="col-6">
+        <h5>Session Key/Value List</h5>
+
+        <form method="post" id="TableSessionForm">
+            <table class="table table-bordered table-striped">
+                <thead>
+                    <tr>
+                        <th>Key Name</th>
+                        <th>Key Vale</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (KeyValuePair<string, string> item in Model.SessionValueList)
+                    {
+                        <tr>
+                            <td>@item.Key</td>
+                            <td>@item.Value</td>
+                            <td>
+                                <button type="submit" class="btn btn-danger"
+                                        asp-page-handler="RemoveSessionItem" asp-route-key="@item.Key">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </form>
     </div>
-</form>
+</div>

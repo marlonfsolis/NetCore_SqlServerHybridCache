@@ -31,7 +31,7 @@ public class SessionSetupMiddleware
         else
         {
             string? sessionId = context.Request.Cookies[CacheLiterals.ApplicationSessionIdName];
-            if(sessionId.IsNullOrEmptyOrWhiteSpace())
+            if(!sessionId.IsNullOrEmptyOrWhiteSpace())
             {
                 context.Items.Add(CacheLiterals.ApplicationSessionIdName, sessionId);
             }
