@@ -39,6 +39,6 @@ BEGIN
     END
     ELSE BEGIN
         INSERT INTO dbo.SessionCacheValue (SessionId, SessionKey, SessionValue, TrackingNo, DataType)
-	    VALUES (@Id, @Key, @Value, 0, @DataType);
+	    VALUES (@Id, @Key, @Value, 1, @DataType);
     END
 END
