@@ -60,4 +60,10 @@ public class SessionServiceTestsModel : PageModel
         await _session.ClearAsync();
         await SetSessionValueList();
     }
+
+    public async Task OnPostDeleteSession()
+    {
+        await _session.DeleteAsync();
+        await SetSessionValueList();
+    }
 }
