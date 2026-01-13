@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.Http;
 using NetCore_SqlServerHybridCache.Services.Constants;
 using NetCore_SqlServerHybridCache.Services.Models;
 using System.Collections.Concurrent;
@@ -15,8 +16,7 @@ public class SessionService : ISessionService
     private readonly string _connectionString;
     private TimeSpan _absoluteExpirationRelativeToNow;
 
-
-    private readonly ConcurrentDictionary<string, long> _lastTrackingNoDic = new();
+    private readonly ConcurrentDictionary<string, List<TrackingItem>> _lastTrackingNoDic = new();
     private readonly ConcurrentDictionary<string, DateTime> _lastRefreshTimeDic = new();
 
     // We need to lock per key in each session id. Only for write operations.
@@ -123,11 +123,11 @@ public class SessionService : ISessionService
         return list;
     }
 
-    private async Task<IEnumerable<SessionChange>> GetSessionChangesFromSource(string id, long lastTrackingNo)
+    private async Task<IEnumerable<SessionChange>> GetSessionChangesFromSource(string id, string trackingListJson)
     {
         DynamicParameters dynParams = new DynamicParameters();
         dynParams.Add("@Id", id);
-        dynParams.Add("@LastTrackingNo", lastTrackingNo);
+        dynParams.Add("@TrackingListJson", trackingListJson);
 
         const string sql = "dbo.usp_getSessionChanges";
         using IDbConnection connection = GetConnection();
@@ -214,30 +214,31 @@ public class SessionService : ISessionService
         await connection.ExecuteAsync(sql, dynParams, commandType: CommandType.StoredProcedure);
     }
 
-    private async Task RefreshLocalSessionFromSource(string id, long lastTrackingNo)
+    private async Task RefreshLocalSessionFromSource(string id)
     {
+        Debug.WriteLine($"Instance: {_configuration.GetValue<string>("InstanceName")}");
+
         try
         {
+            List<TrackingItem> trackingList = _lastTrackingNoDic.GetOrAdd(id, new List<TrackingItem>());
+            string trackingListJson = JsonSerializer.Serialize(trackingList);
+
             // Get current version from remote cache
-            IEnumerable<SessionChange> remoteChanges = await GetSessionChangesFromSource(id, lastTrackingNo);
+            IEnumerable<SessionChange> remoteChanges = await GetSessionChangesFromSource(id, trackingListJson);
             if (remoteChanges.Any())
             {
                 // Remote session has changes. Update local cache for this session.
-                Parallel.ForEach(remoteChanges, (change) =>
+                Parallel.ForEach(remoteChanges, async (change) =>
                 {
-                    string _key = LocalKey(change.SessionId, change.SessionKey);
+                    string localKey = LocalKey(change.SessionId, change.SessionKey);
 
                     if (change.SessionValue is null || change.SessionValue.Length == 0)
                     {
-                        _localCache.Remove(_key);
+                        _localCache.Remove(localKey);
                         return;
                     }
 
-                    if (change.DataType.IsNullOrEmptyOrWhiteSpace())
-                    {
-                        return;
-                    }
-
+                    if (change.DataType.IsNullOrEmptyOrWhiteSpace()) return;
                     Type? type = Type.GetType(change.DataType);
                     if (type == null)
                     {
@@ -245,26 +246,33 @@ public class SessionService : ISessionService
                             .Select(a => a.GetType(change.DataType, false, true))
                             .FirstOrDefault(t => t is not null);
                     }
-
-                    if (type is null)
-                    {
-                        return;
-                    }
+                    if (type is null) return;
 
                     using MemoryStream ms = new(change.SessionValue);
                     ms.Position = 0;
-                    object? result = JsonSerializer.Deserialize(ms, type);
+                    object? result = await JsonSerializer.DeserializeAsync(ms, type);
                     if (result is null)
                     {
                         return;
                     }
 
-                    _localCache.Set(_key, result);
-                });
+                    _localCache.Set(localKey, result);
 
-                // Update last checked version
-                long remoteTrackingNo = remoteChanges.First().TrackingNo;
-                _lastTrackingNoDic[id] = remoteTrackingNo;
+                    // Update last tracking no
+                    TrackingItem? trackingItem = trackingList.FirstOrDefault(t => t.Key == change.SessionKey);
+                    if (trackingItem is null)
+                    {
+                        trackingList.Add(new TrackingItem
+                        {
+                            Key = change.SessionKey,
+                            TrackingNo = change.TrackingNo,
+                        });
+                    }
+                    else
+                    {
+                        trackingItem.TrackingNo = change.TrackingNo;
+                    }
+                });
             }
         }
         catch (Exception e)
@@ -319,23 +327,26 @@ public class SessionService : ISessionService
 
     public async Task<(bool result, T? value)> TryGetAsync<T>(string id, string key)
     {
+        Debug.WriteLine($"Instance: {_configuration.GetValue<string>("InstanceName")}");
+        Debug.WriteLine($"LastTrackingNo: {JsonSerializer.Serialize(_lastTrackingNoDic[id])}");
+
         try
         {
-            string _key = LocalKey(id, key);
+            string localKey = LocalKey(id, key);
 
             // Try local cache first
-            (bool Success, T? Value) _localRes = _localCache.TryGet<T>(_key);
+            (bool Success, T? Value) _localRes = _localCache.TryGet<T>(localKey);
             if (_localRes.Success && _localRes.Value != null)
             {
                 return _localRes;
             }
 
             // Try remote cache
-            T? remoteVal = await GetFromSourceAsync<T>(id, _key, CancellationToken.None);
+            T? remoteVal = await GetFromSourceAsync<T>(id, key, CancellationToken.None);
             if (remoteVal == null) return (false, default(T));
 
             // Save it in local cache for next use
-            _localCache.Set(_key, remoteVal);
+            _localCache.Set(localKey, remoteVal);
             return (true, remoteVal);
         }
         catch (Exception e)
@@ -382,8 +393,7 @@ public class SessionService : ISessionService
         try
         {
             string id = GetId();
-            string _key = LocalKey(id, key);
-            bool keyExists = await SessionKeyExistsInSource(id, _key);
+            bool keyExists = await SessionKeyExistsInSource(id, key);
 
             return keyExists;
         }
@@ -420,30 +430,36 @@ public class SessionService : ISessionService
         {
             if (key.IsNullOrEmptyOrWhiteSpace()) return;
 
+            var list = _lastTrackingNoDic.GetOrAdd(id, new List<TrackingItem>());
+            if (!list.Any(t => t.Key == key))
+            {
+                list.Add(new TrackingItem { Key = key, TrackingNo = 0 });
+            }
+
             if (value is null)
             {
                 await RemoveAsync(key);
                 return;
             }
 
-            string _key = LocalKey(id, key);
+            string localKey = LocalKey(id, key);
 
             Task[] tasks =
             [
                 Task.Run(() =>
                 {
                     // Set in local cache
-                    _localCache.Set(_key, value, absoluteExpirationRelativeToNow);
+                    _localCache.Set(localKey, value, absoluteExpirationRelativeToNow);
                 }),
 
                 Task.Run(async () =>
                 {
                     // Set in remote session cache.
-                    SemaphoreSlim semaphore = _locks.GetOrAdd(_key, _ => new SemaphoreSlim(1, 1));
+                    SemaphoreSlim semaphore = _locks.GetOrAdd(localKey, _ => new SemaphoreSlim(1, 1));
                     await semaphore.WaitAsync();
                     try
                     {
-                        await UpdateSource(id, _key, value, absoluteExpirationRelativeToNow);
+                        await UpdateSource(id, key, value, absoluteExpirationRelativeToNow);
                     }
                     finally
                     {
@@ -475,9 +491,7 @@ public class SessionService : ISessionService
         try
         {
             DateTime utcNow = DateTime.UtcNow;
-
-            long lastTrackingNo = _lastTrackingNoDic.GetOrAdd(id, 0);
-            DateTime lastRefreshTime = _lastRefreshTimeDic.GetOrAdd(id, utcNow);
+            DateTime lastRefreshTime = _lastRefreshTimeDic.GetOrAdd(id, utcNow.AddSeconds(-10));
             double elapsedSeconds = (utcNow - lastRefreshTime).TotalSeconds;
             if (elapsedSeconds < 5)
             {
@@ -486,7 +500,7 @@ public class SessionService : ISessionService
 
             Task[] tasks =
             [
-                RefreshLocalSessionFromSource(id, lastTrackingNo),
+                RefreshLocalSessionFromSource(id),
                 RefreshSessionInSource(id, utcNow, _absoluteExpirationRelativeToNow)
             ];
             await Task.WhenAll(tasks);
@@ -514,23 +528,23 @@ public class SessionService : ISessionService
     {
         try
         {
-            string _key = LocalKey(id, key);
+            string localKey = LocalKey(id, key);
 
             Task[] tasks =
             [
                 Task.Run(() =>
                 {
                     // Remove from local cache
-                    _localCache.Remove(_key);
+                    _localCache.Remove(localKey);
                 }),
 
                 Task.Run(async () =>
                 {
-                    SemaphoreSlim semaphore = _locks.GetOrAdd(_key, _ => new SemaphoreSlim(1, 1));
+                    SemaphoreSlim semaphore = _locks.GetOrAdd(localKey, _ => new SemaphoreSlim(1, 1));
                     await semaphore.WaitAsync();
                     try
                     {
-                        await RemoveFromSource(id, _key);
+                        await RemoveFromSource(id, key);
                     }
                     finally
                     {
@@ -567,7 +581,12 @@ public class SessionService : ISessionService
                 {
                     // Remove all local cache keys for this session.
                     IEnumerable<string> keys = await GetKeysAsync(id);
-                    Parallel.ForEach(keys, (key) => { _localCache.Remove(key); });
+                    
+                    Parallel.ForEach(keys, (key) => 
+                    { 
+                        string localKey = LocalKey(id, key);
+                        _localCache.Remove(localKey); 
+                    });
                 }),
 
                 Task.Run(async () =>
@@ -624,7 +643,11 @@ public class SessionService : ISessionService
                 {
                     // Remove all local cache keys for this session.
                     IEnumerable<string> keys = await GetKeysAsync(id);
-                    Parallel.ForEach(keys, (key) => { _localCache.Remove(key); });
+                    Parallel.ForEach(keys, (key) => 
+                    { 
+                        string localKey = LocalKey(id, key);
+                        _localCache.Remove(localKey); 
+                    });
                 }),
 
                 Task.Run(async () =>
