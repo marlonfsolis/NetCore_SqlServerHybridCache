@@ -59,6 +59,8 @@
     <Folder Include="Scripts" />
     <Folder Include="Procedures\SessionCache" />
     <Folder Include="Procedures\AppCache" />
+    <Folder Include="Procedures\" />
+    <Folder Include="Tables\" />
   </ItemGroup>
   <ItemGroup>
     <Build Include="Procedures\usp_LogError.sql" />
