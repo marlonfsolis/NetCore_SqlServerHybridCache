@@ -11,36 +11,30 @@ BEGIN
 
 
     DROP TABLE IF EXISTS #TrackingList;
-    SELECT SessionKey
-		  ,TrackingNo
+    SELECT 
+        SessionId = @Id,
+        SessionKey,
+        TrackingNo
     INTO #TrackingList
     FROM OPENJSON(@TrackingListJson) WITH(
         SessionKey VARCHAR(800) '$.Key',
         TrackingNo BIGINT '$.TrackingNo'
     )
 
-    IF NOT EXISTS (
-        SELECT 1 FROM #TrackingList tl
-    ) BEGIN
-        SELECT
-            SessionId = scv.SessionId
-           ,SessionKey = scv.SessionKey
-           ,SessionValue = scv.SessionValue
-           ,TrackingNo = scv.TrackingNo
-           ,DataType = scv.DataType
-        FROM dbo.SessionCacheValue scv
-        WHERE scv.SessionId = @Id;
-    END
-    ELSE BEGIN
-        SELECT
-            SessionId = scv.SessionId
-           ,SessionKey = scv.SessionKey
-           ,SessionValue = scv.SessionValue
-           ,TrackingNo = scv.TrackingNo
-           ,DataType = scv.DataType
-        FROM dbo.SessionCacheValue scv
-        INNER JOIN #TrackingList tl ON (tl.SessionKey = scv.SessionKey)
-        WHERE scv.SessionId = @Id
-        AND scv.TrackingNo > tl.TrackingNo;
-    END
+    SELECT
+         SessionId = scv.SessionId
+        ,SessionKey = scv.SessionKey
+        ,SessionValue = scv.SessionValue
+        ,TrackingNo = scv.TrackingNo
+        ,DataType = scv.DataType
+    FROM dbo.SessionCacheValue scv
+    LEFT JOIN #TrackingList tl ON (
+        tl.SessionId = scv.SessionId AND
+        tl.SessionKey = scv.SessionKey
+    )
+    WHERE scv.SessionId = @Id
+    AND (scv.TrackingNo > tl.TrackingNo -- Keys that have changed
+    OR tl.TrackingNo IS NULL -- Keys that we do not have tracked yet
+    )
+    ORDER BY scv.SessionKey;
 END

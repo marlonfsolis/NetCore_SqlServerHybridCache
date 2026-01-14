@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.DataProtection.KeyManagement;
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using NetCore_SqlServerHybridCache.Services.Constants;
 using NetCore_SqlServerHybridCache.Services.Models;
 using System.Collections.Concurrent;
@@ -429,12 +428,6 @@ public class SessionService : ISessionService
         try
         {
             if (key.IsNullOrEmptyOrWhiteSpace()) return;
-
-            var list = _lastTrackingNoDic.GetOrAdd(id, new List<TrackingItem>());
-            if (!list.Any(t => t.Key == key))
-            {
-                list.Add(new TrackingItem { Key = key, TrackingNo = 0 });
-            }
 
             if (value is null)
             {
